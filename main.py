@@ -170,7 +170,7 @@ def apply_style(df):
         return 'color: #64748b;'
     styler = df.style
     func = getattr(styler, "map", getattr(styler, "applymap", None))
-    return func(color_logic, subset=["1D前", "1D今", "4H前", "4H今"])
+    return func(color_logic, subset=["1D前一根", "1D當下", "4H前一根", "4H當下"])
 
 # 高度設為 680，確保在大部分螢幕不會觸發外層捲軸
 st.dataframe(apply_style(df), use_container_width=True, height=680)
