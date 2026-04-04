@@ -6,12 +6,12 @@ import time
 
 # ==================== 1. 網頁頁面設定 ====================
 st.set_page_config(
-    page_title="HA Crypto Analytics",
+    page_title="HA Crypto Terminal",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 2. 注入自定義 CSS (皮膚 + 終端機特效) ====================
+# ==================== 2. 注入進度條與終端機 CSS ====================
 st.markdown("""
 <style>
     /* 全局背景：你喜歡的暗石藍色 */
@@ -20,17 +20,15 @@ st.markdown("""
         color: #f1f5f9;
     }
     
-    /* 頂部導航欄玻璃感 */
     [data-testid="stHeader"] {
         background: rgba(30, 41, 59, 0.7) !important;
         backdrop-filter: blur(8px);
     }
     
-    /* 標題與副標題樣式 */
     .cyber-title {
         font-size: 20px; 
         font-weight: 700;
-        color: #fbbf24; /* 亮金 */
+        color: #fbbf24;
         letter-spacing: 1.5px;
         margin-bottom: 2px;
     }
@@ -40,45 +38,60 @@ st.markdown("""
         margin-bottom: 15px;
     }
 
-    /* --- 終端機加載畫面特效 --- */
-    #terminal-loader {
+    /* --- 終端機進度條外框 --- */
+    #loader-container {
         background-color: #000; 
-        color: #13f21a;        /* 經典終端機綠 */
-        font-family: 'Courier New', Courier, monospace;
-        padding: 20px;
-        border-radius: 8px;
-        border: 2px solid #13f21a; 
-        width: fit-content;
+        padding: 30px;
+        border-radius: 12px;
+        border: 1px solid rgba(19, 242, 26, 0.3);
+        width: 500px;
         margin: 40px auto; 
-        box-shadow: 0 0 20px rgba(19, 242, 26, 0.4);
         text-align: center;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
     }
+
     .terminal-text {
-        font-size: 24px;
+        color: #13f21a;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 22px;
         font-weight: bold;
         text-shadow: 0 0 10px #13f21a;
-        animation: flickering 0.15s infinite;
+        margin-bottom: 20px;
+        display: block;
     }
-    .terminal-cursor {
-        display: inline-block;
-        width: 12px;
-        height: 24px;
+
+    /* 進度條長框 [ ======= ] */
+    .progress-frame {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #13f21a;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 24px;
+        gap: 10px;
+    }
+
+    .progress-bar-bg {
+        width: 300px;
+        height: 14px;
+        border: 1px solid #13f21a;
+        padding: 2px;
+        position: relative;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
         background-color: #13f21a;
-        margin-left: 5px;
-        animation: blink 0.8s infinite;
+        box-shadow: 0 0 15px #13f21a;
+        transition: width 0.2s ease-out;
     }
-    @keyframes flickering {
-        0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; }
-    }
-    @keyframes blink {
-        0%, 100% { opacity: 0; } 50% { opacity: 1; }
-    }
-    /* 隱藏原本預設的轉圈圈 */
+
+    /* 隱藏預設的 Spinner */
     [data-testid="stSpinner"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 3. 核心功能函式 (抓資料邏輯) ====================
+# ==================== 3. 核心功能函式 ====================
 def fetch_klines(symbol, interval, limit=150):
     try:
         url = "https://api.pionex.com/api/v1/market/klines"
@@ -123,17 +136,9 @@ def get_status_value(status_str):
 st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='cyber-subtitle'>SYSTEM STATUS: ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
-# --- A. 建立一個「空白佔位符」，用來放加載畫面 ---
 placeholder = st.empty()
 
-# --- B. 在佔位符裡秀出你的「終端機綠色閃爍」加載畫面 ---
-placeholder.markdown("""
-    <div id="terminal-loader">
-        <span class="terminal-text">SYSTEM LOADING...</span><span class="terminal-cursor"></span>
-    </div>
-""", unsafe_allow_html=True)
-
-# --- C. 開始跑背景數據抓取 ---
+# --- 資料抓取與即時更新進度條 ---
 symbols = [
     "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
     "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", 
@@ -141,7 +146,25 @@ symbols = [
 ]
 
 results = []
-for symbol in symbols:
+total = len(symbols)
+
+for i, symbol in enumerate(symbols):
+    # 更新進度條 UI
+    percent = int(((i + 1) / total) * 100)
+    placeholder.markdown(f"""
+        <div id="loader-container">
+            <span class="terminal-text">SYSTEM LOADING... {percent}%</span>
+            <div class="progress-frame">
+                <span>[</span>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width: {percent}%;"></div>
+                </div>
+                <span>]</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # 執行抓取
     ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
     p1d, c1d = get_status_emoji(ha1d)
     ha4h = calculate_heikin_ashi(fetch_klines(symbol, "4H"))
@@ -154,12 +177,13 @@ for symbol in symbols:
         "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
     })
 
+# 資料處理
 df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
-# --- D. 數據抓完了，把「加載畫面」清空 ---
+# 清除進度條
 placeholder.empty()
 
-# --- E. 顯示最終的表格內容 ---
+# 顯示表格
 def apply_style(df):
     def color_logic(v):
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
