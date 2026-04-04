@@ -133,7 +133,7 @@ def get_status_value(status_str):
     return {"🔴": 0, "⚫": 1, "🟢": 2}.get(status_str, 3)
 
 # ==================== 4. 介面啟動 ====================
-st.markdown("<div class='cyber-title'>Heikin  Ashi Monitor Terminal</div>", unsafe_allow_html=True)
+st.markdown("<div class='cyber-title'>📊Heikin  Ashi Monitor Terminal</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
 placeholder = st.empty()
@@ -170,7 +170,7 @@ for i, symbol in enumerate(symbols):
     p4h, c4h = get_status_emoji(ha4h)
 
     results.append({
-        "幣種": symbol, "1D前": p1d, "1D今": c1d, "4H前": p4h, "4H今": c4h,
+        "幣種": symbol, "1D前一根": p1d, "1D當下": c1d, "4H前一根": p4h, "4H當下": c4h,
         "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
     })
 
@@ -185,7 +185,7 @@ def apply_style(df):
         return 'color: #64748b;'
     styler = df.style
     func = getattr(styler, "map", getattr(styler, "applymap", None))
-    return func(color_logic, subset=["1D前", "1D今", "4H前", "4H今"])
+    return func(color_logic, subset=["1D前一根", "1D當下", "4H前一根", "4H當下"])
 
 st.dataframe(apply_style(df), use_container_width=True, height=680)
 st.toast("✅ DATA SYNC COMPLETE.", icon="⚡")
