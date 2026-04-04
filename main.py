@@ -12,7 +12,7 @@ symbols = [
     "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
 ]
 
-# ==================== 功能函式 ====================
+# ==================== 功能函式 (不變) ====================
 def fetch_klines(symbol, interval, limit=150):
     try:
         url = "https://api.pionex.com/api/v1/market/klines"
@@ -24,20 +24,16 @@ def fetch_klines(symbol, interval, limit=150):
         for k in klines:
             data.append({
                 "time": int(k["time"]) + 8*3600*1000,
-                "open": float(k["open"]),
-                "high": float(k["high"]),
-                "low": float(k["low"]),
-                "close": float(k["close"])
+                "open": float(k["open"]), "high": float(k["high"]),
+                "low": float(k["low"]), "close": float(k["close"])
             })
         data.sort(key=lambda x: x["time"])
         return data
-    except:
-        return []
+    except: return []
 
 def calculate_heikin_ashi(klines):
     ha_klines = []
-    prev_ha_open = None
-    prev_ha_close = None
+    prev_ha_open, prev_ha_close = None, None
     for i, kline in enumerate(klines):
         o, h, l, c = kline['open'], kline['high'], kline['low'], kline['close']
         if i == 0:
@@ -58,31 +54,30 @@ def get_status_emoji(ha_list):
 def get_status_value(status_str):
     return {"🔴": 0, "⚫": 1, "🟢": 2}.get(status_str, 3)
 
-# ==================== 網頁介面 ====================
+# ==================== 網頁介面 (移除按鈕閘門) ====================
 st.title("💹 加密幣 Heikin Ashi 戰情室")
-st.write(f"數據來源：Pionex | 最後檢查時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.write(f"數據來源：Pionex | 當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-if st.button("🚀 立即掃描全幣種行情"):
-    with st.spinner('正在分析中...'):
-        results = []
-        for symbol in symbols:
-            # 抓取並計算 1D 與 4H
-            ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
-            prev1d, curr1d = get_status_emoji(ha1d)
-            
-            ha4h = calculate_heikin_ashi(fetch_klines(symbol, "4H"))
-            prev4h, curr4h = get_status_emoji(ha4h)
+# --- 這裡直接開始跑，不設 if button ---
+with st.spinner('🚀 偵測到進入網頁，正在自動更新全幣種行情...'):
+    results = []
+    for symbol in symbols:
+        ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
+        prev1d, curr1d = get_status_emoji(ha1d)
+        
+        ha4h = calculate_heikin_ashi(fetch_klines(symbol, "4H"))
+        prev4h, curr4h = get_status_emoji(ha4h)
 
-            results.append({
-                "幣種": symbol,
-                "1D前一根": prev1d, "1D當下": curr1d,
-                "4H前一根": prev4h, "4H當下": curr4h,
-                "sort_key": (get_status_value(prev1d), get_status_value(curr1d), get_status_value(prev4h), get_status_value(curr4h))
-            })
+        results.append({
+            "幣種": symbol,
+            "1D前一根": prev1d, "1D當下": curr1d,
+            "4H前一根": prev4h, "4H當下": curr4h,
+            "sort_key": (get_status_value(prev1d), get_status_value(curr1d), get_status_value(prev4h), get_status_value(curr4h))
+        })
 
-        # 排序並顯示
-        df = pd.DataFrame(results).sort_values(by="sort_key").drop(columns=["sort_key"])
-        st.success("掃描完成！")
-        st.dataframe(df, use_container_width=True, height=800)
-else:
-    st.info("請點擊上方按鈕開始分析")
+    # 排序並顯示
+    df = pd.DataFrame(results).sort_values(by="sort_key").drop(columns=["sort_key"])
+    st.success("✅ 數據已自動更新完畢！")
+    st.dataframe(df, use_container_width=True, height=800)
+
+# 如果想手動重新整理，網頁右上角選單也有 Rerun 功能，或者直接重新整理瀏覽器
