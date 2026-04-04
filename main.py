@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 2. 注入 CSS (僅處理視覺與按鈕，不影響邏輯) ====================
+# ==================== 2. 注入 CSS (視覺風格與下拉選單樣式) ====================
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] {
@@ -38,7 +38,13 @@ st.markdown("""
         color: #94a3b8;
     }
 
-    /* 賽博按鈕樣式 */
+    /* 下拉選單與按鈕樣式優化 */
+    div[data-baseweb="select"] {
+        background-color: rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid #13f21a !important;
+        border-radius: 4px;
+    }
+    
     .stButton>button {
         background-color: transparent !important;
         color: #13f21a !important;
@@ -46,11 +52,7 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace !important;
         font-weight: bold !important;
         border-radius: 4px !important;
-        box-shadow: 0 0 10px rgba(19, 242, 26, 0.2);
-    }
-    .stButton>button:hover {
-        background-color: rgba(19, 242, 26, 0.1) !important;
-        box-shadow: 0 0 20px rgba(19, 242, 26, 0.5);
+        width: 100%;
     }
 
     /* 終端機進度條 */
@@ -94,7 +96,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 3. 你的原始主程式 (絕對不動的部分) ====================
+# ==================== 3. 原始主程式 (核心邏輯：絕對不動) ====================
 
 def fetch_klines(symbol, limit=150):
     url = "https://api.pionex.com/api/v1/market/klines"
@@ -160,27 +162,40 @@ def get_status_value(status_str):
     elif status_str == "🟢": return 2
     return 3
 
-# ==================== 4. 介面與按鈕佈局 ====================
+# ==================== 4. 幣種清單定義 ====================
 
-# 建立頂部欄：左邊標題，右邊按鈕
-col_title, col_btn = st.columns([0.82, 0.18])
+symbols_exam = [
+    "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
+    "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", 
+    "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
+]
+
+symbols_all = [
+    "AGLD", "AI", "AERO", "A", "ACE", "ACH", "ADA", "AEVO", "AAVE", "ALGO", "ARB", "APE", "ALT", "AR", "APT", "API3", "ANKR", "ARKM", "ATA", "ASR", "ASTER", "ARPA", "ASTR", "AVAX", "ATOM", "AUCTION", "AXL", "AXS", "BEAMX", "BB", "BAND", "BEL", "BAT", "BCH", "BICO", "BIGTIME", "BLUR", "BOME", "BTC", "BNB", "CAKE", "BONK", "CETUS", "C98", "CFX", "CHR", "CHZ", "CLANKER", "COAI", "COMP", "CKB", "COTI", "CRV", "CRO", "CVX", "CYBER", "DASH", "DIA", "DOGE", "DOT", "DODO", "EGLD", "DUSK", "DYM", "EDU", "ENA", "ENS", "ENJ", "ETHFI", "ETH", "FARTCOIN", "ETC", "FET", "FIL", "FLOKI", "GMT", "FUN", "GMX", "GALA", "GRT", "HBAR", "HFT", "HOOK", "HYPE", "HIGH", "ICP", "ILV", "IMX", "INJ", "IP", "IO", "IOTA", "IOST", "JUP", "JASMY", "JTO", "KAITO", "KAVA", "KAS", "KNC", "KMNO", "KGEN", "LINK", "LRC", "LDO", "LPT", "LQTY", "LSK", "LUNC", "LTC", "MAGIC", "MANA", "MAV", "MASK", "MEME", "MBOX", "METIS", "MEW", "MINA", "MTL", "NEAR", "NAORIS", "NFP", "NEO", "NKN", "NMR", "OKB", "OG", "OGN", "OM", "OP", "ONDO", "ONT", "PAXG", "ORDI", "OXT", "PENGU", "PENDLE", "PEPE", "PI", "PEOPLE", "PHB", "PHA", "PIXEL", "POL", "POLYX", "PORTAL", "POWR", "QTUM", "QNT", "RARE", "PYTH", "RDNT", "RATS", "RAVE", "RAY", "RIF", "ROSE", "RUNE", "RPL", "RLC", "RSR", "S", "RVN", "SAGA", "SAND", "SEI", "SCRT", "SFP", "SHIB", "SKL", "SNX", "SOL", "SOON", "SPELL", "SSV", "STORJ", "STRK", "SUI", "STX", "SUPER", "STG", "SUN", "SUSHI", "SYS", "TAO", "TIA", "THETA", "TNSR", "TLM", "TON", "TRUMP", "TRX", "TRB", "TRU", "TURBO", "TRUST", "TWT", "UMA", "UNI", "USDC", "USTC", "VET", "VINE", "USUAL", "W", "WIF", "WLFI", "WLD", "WOO", "XAI", "XLM", "XEC", "XNY", "XTZ", "XRP", "XVG", "XVS", "YFI", "YGG", "ZEN", "ZEC", "ZETA", "ZRX", "ZIL"
+]
+
+# ==================== 5. 介面佈局與邏輯 ====================
+
+# 頂部欄：左邊標題，中間下拉選單，右邊按鈕
+col_title, col_select, col_btn = st.columns([0.65, 0.22, 0.13])
 
 with col_title:
     st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
+with col_select:
+    # 下拉式選項
+    selection = st.selectbox("", ["考試幣", "全幣種"], label_visibility="collapsed")
+
 with col_btn:
-    # 建立一個空位，等跑完進度條後再塞入按鈕
+    # 重新分析按鈕
     btn_container = st.empty()
 
-# 建立進度條空位
-placeholder = st.empty()
+# 決定要分析的清單
+symbols = symbols_exam if selection == "考試幣" else symbols_all
 
-symbols = [
-    "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
-    "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", 
-    "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
-]
+# 進度條空位
+placeholder = st.empty()
 
 results = []
 total = len(symbols)
@@ -188,7 +203,6 @@ total = len(symbols)
 # --- 執行分析循環 ---
 for i, symbol in enumerate(symbols):
     percent = int(((i + 1) / total) * 100)
-    # 顯示你要求的進度條
     placeholder.markdown(f"""
         <div id="loader-container">
             <span class="terminal-text">SYSTEM LOADING... {percent}%</span>
@@ -228,7 +242,7 @@ df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 # 清除進度條
 placeholder.empty()
 
-# --- 5. 顯示表格與啟動按鈕 ---
+# --- 6. 顯示結果 ---
 
 def apply_style(df):
     def color_logic(v):
@@ -242,8 +256,8 @@ def apply_style(df):
 # 顯示表格
 st.dataframe(apply_style(df), use_container_width=True, height=680)
 
-# 顯示重新分析按鈕
+# 在右上角塞入按鈕
 if btn_container.button("⚡ 重新分析"):
     st.rerun()
 
-st.toast("✅ SYNC COMPLETE.", icon="⚡")
+st.toast(f"✅ {selection} SYNC COMPLETE.", icon="⚡")
