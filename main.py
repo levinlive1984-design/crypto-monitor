@@ -95,8 +95,8 @@ def get_status_value(status_str):
     return {"🔴": 0, "⚫": 1, "🟢": 2}.get(status_str, 3)
 
 # ==================== 4. 網頁介面主體 ====================
-st.markdown("<div class='cyber-title'>Analytics Hub v2.0</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='cyber-subtitle'>Heikin Ashi Monitor | Last Update: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='cyber-subtitle'>SYSTEM STATUS: ONLINE | PROTOCOL: HEIKIN ASHI | {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
 symbols = [
     "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
@@ -105,7 +105,8 @@ symbols = [
 ]
 
 # 自動執行
-with st.spinner('SYSTEM LOADING...'):
+# 把 spinner 裡的文字改成更有「跑程式」的感覺
+with st.spinner('>> INITIALIZING NEURAL LINK... [OK]\n>> SCANNING MARKET PROTOCOLS... [LOADING]'):
     results = []
     for symbol in symbols:
         ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
@@ -135,4 +136,6 @@ with st.spinner('SYSTEM LOADING...'):
         func = getattr(styler, "map", getattr(styler, "applymap", None))
         return func(color_logic, subset=["1D前", "1D今", "4H前", "4H今"])
 
+    # 數據整理完畢後
+    st.success(">> DATA DECRYPTED SUCCESSFULLY.") # 成功後的提示語也改掉
     st.dataframe(apply_style(df), use_container_width=True, height=750)
