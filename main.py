@@ -120,7 +120,7 @@ def get_status_value(status_str):
     return {"🔴": 0, "⚫": 1, "🟢": 2}.get(status_str, 3)
 
 # ==================== 4. 介面啟動 ====================
-st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
+st.markdown("<div class='cyber-title'>Heikin  Ashi monitor</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
 placeholder = st.empty()
