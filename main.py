@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 import streamlit as st
 from datetime import datetime
+import time
 
 # ==================== 1. 網頁頁面設定 ====================
 st.set_page_config(
@@ -10,49 +11,74 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 2. 注入 Cyberpunk 玻璃皮膚 CSS ====================
+# ==================== 2. 注入自定義 CSS (皮膚 + 終端機特效) ====================
 st.markdown("""
 <style>
-    /* 全局背景：深邃黑 */
+    /* 全局背景：你喜歡的暗石藍色 */
     [data-testid="stAppViewContainer"] {
-        background-color: #0b0e14;
-        color: #e0e6ed;
+        background-color: #1e293b; 
+        color: #f1f5f9;
     }
     
-    /* 玻璃頂部欄 */
+    /* 頂部導航欄玻璃感 */
     [data-testid="stHeader"] {
-        background: rgba(15, 23, 42, 0.6) !important;
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(30, 41, 59, 0.7) !important;
+        backdrop-filter: blur(8px);
     }
     
-    /* 標題樣式：縮小並改為琥珀金 */
+    /* 標題與副標題樣式 */
     .cyber-title {
-        font-size: 20px; /* 標題縮小 */
+        font-size: 20px; 
         font-weight: 700;
-        color: #ffb000; /* 琥珀金 */
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        margin-bottom: 0px;
+        color: #fbbf24; /* 亮金 */
+        letter-spacing: 1.5px;
+        margin-bottom: 2px;
     }
-    
     .cyber-subtitle {
         font-size: 11px;
-        color: #64748b;
-        margin-bottom: 20px;
+        color: #94a3b8;
+        margin-bottom: 15px;
     }
 
-    /* 表格容器樣式 */
-    .stDataFrame {
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        overflow: hidden;
-        background: rgba(30, 41, 59, 0.2);
+    /* --- 終端機加載畫面特效 --- */
+    #terminal-loader {
+        background-color: #000; 
+        color: #13f21a;        /* 經典終端機綠 */
+        font-family: 'Courier New', Courier, monospace;
+        padding: 20px;
+        border-radius: 8px;
+        border: 2px solid #13f21a; 
+        width: fit-content;
+        margin: 40px auto; 
+        box-shadow: 0 0 20px rgba(19, 242, 26, 0.4);
+        text-align: center;
     }
+    .terminal-text {
+        font-size: 24px;
+        font-weight: bold;
+        text-shadow: 0 0 10px #13f21a;
+        animation: flickering 0.15s infinite;
+    }
+    .terminal-cursor {
+        display: inline-block;
+        width: 12px;
+        height: 24px;
+        background-color: #13f21a;
+        margin-left: 5px;
+        animation: blink 0.8s infinite;
+    }
+    @keyframes flickering {
+        0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; }
+    }
+    @keyframes blink {
+        0%, 100% { opacity: 0; } 50% { opacity: 1; }
+    }
+    /* 隱藏原本預設的轉圈圈 */
+    [data-testid="stSpinner"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 3. 功能函式區 ====================
+# ==================== 3. 核心功能函式 (抓資料邏輯) ====================
 def fetch_klines(symbol, interval, limit=150):
     try:
         url = "https://api.pionex.com/api/v1/market/klines"
@@ -64,8 +90,7 @@ def fetch_klines(symbol, interval, limit=150):
         for k in klines:
             data.append({
                 "time": int(k["time"]) + 8*3600*1000,
-                "open": float(k["open"]), "high": float(k["high"]),
-                "low": float(k["low"]), "close": float(k["close"])
+                "open": float(k["open"]), "close": float(k["close"])
             })
         data.sort(key=lambda x: x["time"])
         return data
@@ -75,12 +100,12 @@ def calculate_heikin_ashi(klines):
     ha_klines = []
     prev_ha_open, prev_ha_close = None, None
     for i, kline in enumerate(klines):
-        o, h, l, c = kline['open'], kline['high'], kline['low'], kline['close']
+        o, c = kline['open'], kline['close']
         if i == 0:
-            ha_close = (o + h + l + c) / 4
+            ha_close = (o + o + o + c) / 4 
             ha_open = (o + c) / 2
         else:
-            ha_close = (o + h + l + c) / 4
+            ha_close = (o + o + o + c) / 4 
             ha_open = (prev_ha_open + prev_ha_close) / 2
         ha_klines.append({'open': ha_open, 'close': ha_close})
         prev_ha_open, prev_ha_close = ha_open, ha_close
@@ -94,48 +119,55 @@ def get_status_emoji(ha_list):
 def get_status_value(status_str):
     return {"🔴": 0, "⚫": 1, "🟢": 2}.get(status_str, 3)
 
-# ==================== 4. 網頁介面主體 ====================
+# ==================== 4. 網頁介面啟動 ====================
 st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='cyber-subtitle'>SYSTEM STATUS: ONLINE | PROTOCOL: HEIKIN ASHI | {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='cyber-subtitle'>SYSTEM STATUS: ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
+# --- A. 建立一個「空白佔位符」，用來放加載畫面 ---
+placeholder = st.empty()
+
+# --- B. 在佔位符裡秀出你的「終端機綠色閃爍」加載畫面 ---
+placeholder.markdown("""
+    <div id="terminal-loader">
+        <span class="terminal-text">SYSTEM LOADING...</span><span class="terminal-cursor"></span>
+    </div>
+""", unsafe_allow_html=True)
+
+# --- C. 開始跑背景數據抓取 ---
 symbols = [
     "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
     "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", 
     "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
 ]
 
-# 自動執行
-# 把 spinner 裡的文字改成更有「跑程式」的感覺
-with st.spinner('>> INITIALIZING NEURAL LINK... [OK]\n>> SCANNING MARKET PROTOCOLS... [LOADING]'):
-    results = []
-    for symbol in symbols:
-        ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
-        p1d, c1d = get_status_emoji(ha1d)
-        ha4h = calculate_heikin_ashi(fetch_klines(symbol, "4H"))
-        p4h, c4h = get_status_emoji(ha4h)
+results = []
+for symbol in symbols:
+    ha1d = calculate_heikin_ashi(fetch_klines(symbol, "1D"))
+    p1d, c1d = get_status_emoji(ha1d)
+    ha4h = calculate_heikin_ashi(fetch_klines(symbol, "4H"))
+    p4h, c4h = get_status_emoji(ha4h)
 
-        results.append({
-            "幣種": symbol,
-            "1D前": p1d, "1D今": c1d,
-            "4H前": p4h, "4H今": c4h,
-            "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
-        })
+    results.append({
+        "幣種": symbol,
+        "1D前": p1d, "1D今": c1d,
+        "4H前": p4h, "4H今": c4h,
+        "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
+    })
 
-    # 排序
-    df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
-    
-    # --- 修正後的表格顏色邏輯 (解決報錯問題) ---
-    def apply_style(df):
-        def color_logic(v):
-            if v == '🟢': return 'color: #00ffcc; font-weight: bold;' # 螢光青綠
-            if v == '🔴': return 'color: #ff3366; font-weight: bold;' # 霓虹紅
-            return 'color: #475569;'
-        
-        # 自動偵測 Pandas 版本使用 map 或 applymap
-        styler = df.style
-        func = getattr(styler, "map", getattr(styler, "applymap", None))
-        return func(color_logic, subset=["1D前", "1D今", "4H前", "4H今"])
+df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
-    # 數據整理完畢後
-    st.success(">> DATA DECRYPTED SUCCESSFULLY.") # 成功後的提示語也改掉
-    st.dataframe(apply_style(df), use_container_width=True, height=750)
+# --- D. 數據抓完了，把「加載畫面」清空 ---
+placeholder.empty()
+
+# --- E. 顯示最終的表格內容 ---
+def apply_style(df):
+    def color_logic(v):
+        if v == '🟢': return 'color: #22c55e; font-weight: bold;'
+        if v == '🔴': return 'color: #ef4444; font-weight: bold;'
+        return 'color: #64748b;'
+    styler = df.style
+    func = getattr(styler, "map", getattr(styler, "applymap", None))
+    return func(color_logic, subset=["1D前", "1D今", "4H前", "4H今"])
+
+st.dataframe(apply_style(df), use_container_width=True, height=750)
+st.success("SYNC COMPLETE.")
