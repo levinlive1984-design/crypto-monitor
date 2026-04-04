@@ -155,7 +155,7 @@ for i, symbol in enumerate(symbols):
     p4h, c4h = get_status_emoji(ha4h)
 
     results.append({
-        "幣種": symbol, "1D前": p1d, "1D今": c1d, "4H前": p4h, "4H今": c4h,
+        "幣種": symbol, "1D前一根": p1d, "1D當下": c1d, "4H前一根": p4h, "4H當下": c4h,
         "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
     })
 
