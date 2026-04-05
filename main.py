@@ -11,34 +11,36 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== 2. 注入 CSS (視覺風格與下拉選單樣式) ====================
+# ==================== 2. 注入 CSS (鎖定外層捲軸，解決打架問題) ====================
 st.markdown("""
 <style>
-    html, body, [data-testid="stAppViewContainer"] {
-        overflow: hidden; 
-        height: 100vh;
-    }
+    /* 核心修正：強制隱藏網頁最外層捲軸，只讓表格自己捲 */
     [data-testid="stAppViewContainer"] {
+        overflow: hidden;
+        height: 100vh;
         background-color: #1e293b; 
         color: #f1f5f9;
     }
+
+    /* 頂部導航欄 */
     [data-testid="stHeader"] {
         background: rgba(30, 41, 59, 0.7) !important;
         backdrop-filter: blur(8px);
     }
+    
     .cyber-title {
         font-size: 22px; 
         font-weight: 700;
         color: #fbbf24;
         letter-spacing: 1.5px;
-        margin-top: -15px;
+        margin-top: -20px;
     }
     .cyber-subtitle {
         font-size: 11px;
         color: #94a3b8;
     }
 
-    /* 下拉選單與按鈕樣式優化 */
+    /* 下拉選單與按鈕樣式 */
     div[data-baseweb="select"] {
         background-color: rgba(0, 0, 0, 0.3) !important;
         border: 1px solid #13f21a !important;
@@ -96,7 +98,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 3. 原始主程式 (核心邏輯：絕對不動) ====================
+# ==================== 3. 原始主程式 (核心邏輯：絕對不動，確保訊號對齊) ====================
 
 def fetch_klines(symbol, limit=150):
     url = "https://api.pionex.com/api/v1/market/klines"
@@ -162,68 +164,44 @@ def get_status_value(status_str):
     elif status_str == "🟢": return 2
     return 3
 
-# ==================== 4. 幣種清單定義 ====================
+# ==================== 4. 幣種清單 ====================
 
-symbols_exam = [
-    "ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", 
-    "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", 
-    "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
-]
+symbols_exam = ["ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"]
+symbols_all = ["AGLD", "AI", "AERO", "A", "ACE", "ACH", "ADA", "AEVO", "AAVE", "ALGO", "ARB", "APE", "ALT", "AR", "APT", "API3", "ANKR", "ARKM", "ATA", "ASR", "ASTER", "ARPA", "ASTR", "AVAX", "ATOM", "AUCTION", "AXL", "AXS", "BEAMX", "BB", "BAND", "BEL", "BAT", "BCH", "BICO", "BIGTIME", "BLUR", "BOME", "BTC", "BNB", "CAKE", "BONK", "CETUS", "C98", "CFX", "CHR", "CHZ", "CLANKER", "COAI", "COMP", "CKB", "COTI", "CRV", "CRO", "CVX", "CYBER", "DASH", "DIA", "DOGE", "DOT", "DODO", "EGLD", "DUSK", "DYM", "EDU", "ENA", "ENS", "ENJ", "ETHFI", "ETH", "FARTCOIN", "ETC", "FET", "FIL", "FLOKI", "GMT", "FUN", "GMX", "GALA", "GRT", "HBAR", "HFT", "HOOK", "HYPE", "HIGH", "ICP", "ILV", "IMX", "INJ", "IP", "IO", "IOTA", "IOST", "JUP", "JASMY", "JTO", "KAITO", "KAVA", "KAS", "KNC", "KMNO", "KGEN", "LINK", "LRC", "LDO", "LPT", "LQTY", "LSK", "LUNC", "LTC", "MAGIC", "MANA", "MAV", "MASK", "MEME", "MBOX", "METIS", "MEW", "MINA", "MTL", "NEAR", "NAORIS", "NFP", "NEO", "NKN", "NMR", "OKB", "OG", "OGN", "OM", "OP", "ONDO", "ONT", "PAXG", "ORDI", "OXT", "PENGU", "PENDLE", "PEPE", "PI", "PEOPLE", "PHB", "PHA", "PIXEL", "POL", "POLYX", "PORTAL", "POWR", "QTUM", "QNT", "RARE", "PYTH", "RDNT", "RATS", "RAVE", "RAY", "RIF", "ROSE", "RUNE", "RPL", "RLC", "RSR", "S", "RVN", "SAGA", "SAND", "SEI", "SCRT", "SFP", "SHIB", "SKL", "SNX", "SOL", "SOON", "SPELL", "SSV", "STORJ", "STRK", "SUI", "STX", "SUPER", "STG", "SUN", "SUSHI", "SYS", "TAO", "TIA", "THETA", "TNSR", "TLM", "TON", "TRUMP", "TRX", "TRB", "TRU", "TURBO", "TRUST", "TWT", "UMA", "UNI", "USDC", "USTC", "VET", "VINE", "USUAL", "W", "WIF", "WLFI", "WLD", "WOO", "XAI", "XLM", "XEC", "XNY", "XTZ", "XRP", "XVG", "XVS", "YFI", "YGG", "ZEN", "ZEC", "ZETA", "ZRX", "ZIL"]
 
-symbols_all = [
-    "AGLD", "AI", "AERO", "A", "ACE", "ACH", "ADA", "AEVO", "AAVE", "ALGO", "ARB", "APE", "ALT", "AR", "APT", "API3", "ANKR", "ARKM", "ATA", "ASR", "ASTER", "ARPA", "ASTR", "AVAX", "ATOM", "AUCTION", "AXL", "AXS", "BEAMX", "BB", "BAND", "BEL", "BAT", "BCH", "BICO", "BIGTIME", "BLUR", "BOME", "BTC", "BNB", "CAKE", "BONK", "CETUS", "C98", "CFX", "CHR", "CHZ", "CLANKER", "COAI", "COMP", "CKB", "COTI", "CRV", "CRO", "CVX", "CYBER", "DASH", "DIA", "DOGE", "DOT", "DODO", "EGLD", "DUSK", "DYM", "EDU", "ENA", "ENS", "ENJ", "ETHFI", "ETH", "FARTCOIN", "ETC", "FET", "FIL", "FLOKI", "GMT", "FUN", "GMX", "GALA", "GRT", "HBAR", "HFT", "HOOK", "HYPE", "HIGH", "ICP", "ILV", "IMX", "INJ", "IP", "IO", "IOTA", "IOST", "JUP", "JASMY", "JTO", "KAITO", "KAVA", "KAS", "KNC", "KMNO", "KGEN", "LINK", "LRC", "LDO", "LPT", "LQTY", "LSK", "LUNC", "LTC", "MAGIC", "MANA", "MAV", "MASK", "MEME", "MBOX", "METIS", "MEW", "MINA", "MTL", "NEAR", "NAORIS", "NFP", "NEO", "NKN", "NMR", "OKB", "OG", "OGN", "OM", "OP", "ONDO", "ONT", "PAXG", "ORDI", "OXT", "PENGU", "PENDLE", "PEPE", "PI", "PEOPLE", "PHB", "PHA", "PIXEL", "POL", "POLYX", "PORTAL", "POWR", "QTUM", "QNT", "RARE", "PYTH", "RDNT", "RATS", "RAVE", "RAY", "RIF", "ROSE", "RUNE", "RPL", "RLC", "RSR", "S", "RVN", "SAGA", "SAND", "SEI", "SCRT", "SFP", "SHIB", "SKL", "SNX", "SOL", "SOON", "SPELL", "SSV", "STORJ", "STRK", "SUI", "STX", "SUPER", "STG", "SUN", "SUSHI", "SYS", "TAO", "TIA", "THETA", "TNSR", "TLM", "TON", "TRUMP", "TRX", "TRB", "TRU", "TURBO", "TRUST", "TWT", "UMA", "UNI", "USDC", "USTC", "VET", "VINE", "USUAL", "W", "WIF", "WLFI", "WLD", "WOO", "XAI", "XLM", "XEC", "XNY", "XTZ", "XRP", "XVG", "XVS", "YFI", "YGG", "ZEN", "ZEC", "ZETA", "ZRX", "ZIL"
-]
+# ==================== 5. 介面佈局 ====================
 
-# ==================== 5. 介面佈局與邏輯 ====================
-
-# 頂部欄：左邊標題，中間下拉選單，右邊按鈕
-col_title, col_select, col_btn = st.columns([0.65, 0.22, 0.13])
+col_title, col_select, col_btn = st.columns([0.62, 0.23, 0.15])
 
 with col_title:
-    st.markdown("<div class='cyber-title'>Heikin-Ashi Monitor Terminal</div>", unsafe_allow_html=True)
+    st.markdown("<div class='cyber-title'>LD-NY BOUNDARY TERMINAL</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
 with col_select:
-    # 下拉式選項
     selection = st.selectbox("", ["考試幣", "全幣種"], label_visibility="collapsed")
 
 with col_btn:
-    # 重新分析按鈕
     btn_container = st.empty()
 
-# 決定要分析的清單
 symbols = symbols_exam if selection == "考試幣" else symbols_all
-
-# 進度條空位
 placeholder = st.empty()
-
 results = []
 total = len(symbols)
 
-# --- 執行分析循環 ---
 for i, symbol in enumerate(symbols):
     percent = int(((i + 1) / total) * 100)
     placeholder.markdown(f"""
         <div id="loader-container">
             <span class="terminal-text">SYSTEM LOADING... {percent}%</span>
-            <div class="progress-frame">
-                <span>[</span>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" style="width: {percent}%;"></div>
-                </div>
-                <span>]</span>
-            </div>
+            <div class="progress-frame"><span>[</span><div class="progress-bar-bg"><div class="progress-bar-fill" style="width: {percent}%;"></div></div><span>]</span></div>
         </div>
     """, unsafe_allow_html=True)
-    
     try:
-        # 1D 分析
         k1d = fetch_klines(symbol)
         ha1d = calculate_heikin_ashi(k1d)
         p1d = "🟢" if ha1d[-2]['close'] > ha1d[-2]['open'] else ("🔴" if ha1d[-2]['close'] < ha1d[-2]['open'] else "⚫") if len(ha1d)>=2 else "⚫"
         c1d = "🟢" if ha1d[-1]['close'] > ha1d[-1]['open'] else ("🔴" if ha1d[-1]['close'] < ha1d[-1]['open'] else "⚫") if ha1d else "⚫"
 
-        # 4H 分析
         k4h = fetch_klines_4h(symbol)
         ha4h = calculate_heikin_ashi(k4h)
         p4h = "🟢" if ha4h[-2]['close'] > ha4h[-2]['open'] else ("🔴" if ha4h[-2]['close'] < ha4h[-2]['open'] else "⚫") if len(ha4h)>=2 else "⚫"
@@ -233,16 +211,12 @@ for i, symbol in enumerate(symbols):
             "幣種": symbol, "1D前一根": p1d, "1D當下": c1d, "4H前一根": p4h, "4H當下": c4h,
             "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
         })
-    except:
-        pass
+    except: pass
 
-# 排序
 df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
-
-# 清除進度條
 placeholder.empty()
 
-# --- 6. 顯示結果 ---
+# --- 6. 顯示結果 (調整高度確保無雙捲軸) ---
 
 def apply_style(df):
     def color_logic(v):
@@ -253,10 +227,9 @@ def apply_style(df):
     func = getattr(styler, "map", getattr(styler, "applymap", None))
     return func(color_logic, subset=["1D前一根", "1D當下", "4H前一根", "4H當下"])
 
-# 顯示表格
-st.dataframe(apply_style(df), use_container_width=True, height=680)
+# 高度設為 650px 左右，配合 overflow: hidden 鎖死外層
+st.dataframe(apply_style(df), use_container_width=True, height=650)
 
-# 在右上角塞入按鈕
 if btn_container.button("⚡ 重新分析"):
     st.rerun()
 
