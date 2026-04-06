@@ -5,3 +5,7 @@ backgroundColor="#1e293b"
 secondaryBackgroundColor="#0f172a"
 textColor="#f1f5f9"
 font="sans serif"
+# 加在原本的 config.toml 下面
+[browser]
+gatherUsageStats = false
+toolbarMode = "hidden" # 隱藏上方工具列，更像 APP
