@@ -170,8 +170,8 @@ symbols_exam = [
     "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME"
 ]
 
-symbols_all = [
-    "AGLD", "AI", "AERO", "A", "ACE", "ACH", "ADA", "AEVO", "AAVE", "ALGO", "ARB", "APE", "ALT", "AR", "APT", "API3", "ANKR", "ARKM", "ATA", "ASR", "ASTER", "ARPA", "ASTR", "AVAX", "ATOM", "AUCTION", "AXL", "AXS", "BEAMX", "BB", "BAND", "BEL", "BAT", "BCH", "BICO", "BIGTIME", "BLUR", "BOME", "BTC", "BNB", "CAKE", "BONK", "CETUS", "C98", "CFX", "CHR", "CHZ", "CLANKER", "COAI", "COMP", "CKB", "COTI", "CRV", "CRO", "CVX", "CYBER", "DASH", "DIA", "DOGE", "DOT", "DODO", "EGLD", "DUSK", "DYM", "EDU", "ENA", "ENS", "ENJ", "ETHFI", "ETH", "FARTCOIN", "ETC", "FET", "FIL", "FLOKI", "GMT", "FUN", "GMX", "GALA", "GRT", "HBAR", "HFT", "HOOK", "HYPE", "HIGH", "ICP", "ILV", "IMX", "INJ", "IP", "IO", "IOTA", "IOST", "JUP", "JASMY", "JTO", "KAITO", "KAVA", "KAS", "KNC", "KMNO", "KGEN", "LINK", "LRC", "LDO", "LPT", "LQTY", "LSK", "LUNC", "LTC", "MAGIC", "MANA", "MAV", "MASK", "MEME", "MBOX", "METIS", "MEW", "MINA", "MTL", "NEAR", "NAORIS", "NFP", "NEO", "NKN", "NMR", "OKB", "OG", "OGN", "OM", "OP", "ONDO", "ONT", "PAXG", "ORDI", "OXT", "PENGU", "PENDLE", "PEPE", "PI", "PEOPLE", "PHB", "PHA", "PIXEL", "POL", "POLYX", "PORTAL", "POWR", "QTUM", "QNT", "RARE", "PYTH", "RDNT", "RATS", "RAVE", "RAY", "RIF", "ROSE", "RUNE", "RPL", "RLC", "RSR", "S", "RVN", "SAGA", "SAND", "SEI", "SCRT", "SFP", "SHIB", "SKL", "SNX", "SOL", "SOON", "SPELL", "SSV", "STORJ", "STRK", "SUI", "STX", "SUPER", "STG", "SUN", "SUSHI", "SYS", "TAO", "TIA", "THETA", "TNSR", "TLM", "TON", "TRUMP", "TRX", "TRB", "TRU", "TURBO", "TRUST", "TWT", "UMA", "UNI", "USDC", "USTC", "VET", "VINE", "USUAL", "W", "WIF", "WLFI", "WLD", "WOO", "XAI", "XLM", "XEC", "XNY", "XTZ", "XRP", "XVG", "XVS", "YFI", "YGG", "ZEN", "ZEC", "ZETA", "ZRX", "ZIL"
+symbols_dwf = [
+    "ALGO","FET","BONK","CRV","FLOKI","JASMY","IOTA","GALA","A","EGLD","SNX","BEAMX","TURBO","ACH","KAVA","MASK","ID","COTI","CYBER","AUCTION","PHA","SPELL","YGG","BICO","C98","AGLD","METIS","DODO","ARPA","HIGH","HFT","BEL","MBOX","PORTAL"
 ]
 
 # ==================== 5. 介面佈局與邏輯 ====================
@@ -185,14 +185,14 @@ with col_title:
 
 with col_select:
     # 下拉式選項
-    selection = st.selectbox("", ["考試幣", "全幣種"], label_visibility="collapsed")
+    selection = st.selectbox("", ["考試幣", "DWF"], label_visibility="collapsed")
 
 with col_btn:
     # 重新分析按鈕
     btn_container = st.empty()
 
 # 決定要分析的清單
-symbols = symbols_exam if selection == "考試幣" else symbols_all
+symbols = symbols_exam if selection == "考試幣" else symbols_dwf
 
 # 進度條空位
 placeholder = st.empty()
@@ -230,7 +230,7 @@ for i, symbol in enumerate(symbols):
         c4h = "🟢" if ha4h[-1]['close'] > ha4h[-1]['open'] else ("🔴" if ha4h[-1]['close'] < ha4h[-1]['open'] else "⚫") if ha4h else "⚫"
 
         results.append({
-            "幣種": symbol, "1D前一根": p1d, "1D當下": c1d, "4H前一根": p4h, "4H當下": c4h,
+            "幣種": symbol, "1D前": p1d, "1D當": c1d, "4H前": p4h, "4H當": c4h,
             "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
         })
     except:
@@ -251,7 +251,7 @@ def apply_style(df):
         return 'color: #64748b;'
     styler = df.style
     func = getattr(styler, "map", getattr(styler, "applymap", None))
-    return func(color_logic, subset=["1D前一根", "1D當下", "4H前一根", "4H當下"])
+    return func(color_logic, subset=["1D前", "1D當", "4H前", "4H當"])
 
 # 顯示表格
 st.dataframe(apply_style(df), use_container_width=True, height=680)
