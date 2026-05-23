@@ -1,8 +1,11 @@
 import requests
 import pandas as pd
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import time
+
+# 台灣時區 UTC+8
+TW_TZ = timezone(timedelta(hours=8))
 
 # ==================== 1. 網頁頁面設定 ====================
 st.set_page_config(
@@ -171,7 +174,8 @@ col_title, col_select, col_btn = st.columns([0.65, 0.22, 0.13])
 
 with col_title:
     st.markdown("<div class='cyber-title'>Heikin-Ashi Monitor Terminal</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {datetime.now().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+    tw_now = datetime.now(TW_TZ).strftime('%H:%M:%S')
+    st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {tw_now} (TWN)</div>", unsafe_allow_html=True)
 
 with col_select:
     selection = st.selectbox("", list(SYMBOLS_CONFIG.keys()), label_visibility="collapsed")
@@ -238,14 +242,25 @@ if results:
         # HA 燈號
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
         elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
-        # BB 中軌訊號
-        elif v == '▲': return 'color: #22c55e; font-weight: bold; font-size: 16px;'
-        elif v == '▼': return 'color: #ef4444; font-weight: bold; font-size: 16px;'
+        # BB 中軌訊號 — 字體放大到和 emoji 相近
+        elif v == '▲': return 'color: #22c55e; font-weight: bold; font-size: 22px; line-height: 1;'
+        elif v == '▼': return 'color: #ef4444; font-weight: bold; font-size: 22px; line-height: 1;'
         return 'color: #64748b;'
+
+    # 欄位寬度設定：窄化 1D/4H/BB 欄
+    col_cfg = {
+        "幣種":   st.column_config.TextColumn("幣種",   width=80),
+        "1D前":   st.column_config.TextColumn("1D前",   width=60),
+        "1D當":   st.column_config.TextColumn("1D當",   width=60),
+        "4H前":   st.column_config.TextColumn("4H前",   width=60),
+        "4H當":   st.column_config.TextColumn("4H當",   width=60),
+        "BB中軌": st.column_config.TextColumn("BB中軌", width=70),
+    }
 
     st.dataframe(
         df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
-        use_container_width=True, 
+        use_container_width=False,
+        column_config=col_cfg,
         height=680,
         hide_index=True
     )
