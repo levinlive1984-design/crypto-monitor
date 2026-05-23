@@ -88,7 +88,7 @@ st.markdown("""
 
     /* 強制放大 dataframe 內所有文字格的字體，讓 ▲▼ 跟 emoji 等大 */
     [data-testid="stDataFrame"] iframe {
-        font-size: 25px !important;
+        font-size: 20px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -166,9 +166,9 @@ def get_bb_signal(ha_close, bb_basis):
     if bb_basis is None:
         return "—"
     if ha_close > bb_basis:
-        return "▲"
+        return "✅"
     elif ha_close < bb_basis:
-        return "▼"
+        return "❌"
     else:
         return "—"
 
@@ -252,8 +252,8 @@ if results:
     def color_logic(v):
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
         elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
-        elif v == '▲': return 'color: #22c55e; font-weight: bold;'
-        elif v == '▼': return 'color: #ef4444; font-weight: bold;'
+        elif v == '✅': return ''
+        elif v == '❌': return ''
         return 'color: #64748b;'
 
     col_cfg = {
