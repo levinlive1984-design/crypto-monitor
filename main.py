@@ -81,7 +81,7 @@ st.markdown("""
 
 # ==================== 3. 核心抓取邏輯 (加上緩存保護) ====================
 
-@st.cache_data(ttl=600)  # 數據緩存 10 分鐘，避免重複請求
+@st.cache_data(ttl=600)
 def get_crypto_data(symbol, interval):
     """
     從 Pionex 獲取數據，加上 timeout 避免掛起
@@ -89,7 +89,6 @@ def get_crypto_data(symbol, interval):
     url = "https://api.pionex.com/api/v1/market/klines"
     params = {"symbol": f"{symbol}_USDT", "interval": interval, "limit": 150}
     try:
-        # 加上 timeout=5 秒，如果伺服器不回傳就跳過，不卡死
         resp = requests.get(url, params=params, timeout=5)
         resp.raise_for_status()
         klines = resp.json()["data"]["klines"]
@@ -127,9 +126,37 @@ def calculate_heikin_ashi(klines):
         prev_ha_open, prev_ha_close = ha_open, ha_close
     return ha_klines
 
+def calculate_bollinger_basis(klines, period=20):
+    """
+    計算布林帶中軌 (SMA20)，使用原始日線收盤價
+    對應 Pine Script: basis = ta.sma(close, 20)
+    回傳最新一根完整日線的中軌值
+    """
+    if not klines or len(klines) < period:
+        return None
+    # 取最後 period 根 K 棒的收盤價（用 index -1 是當根，對應 Pine 的 basis 當下值）
+    closes = [k['close'] for k in klines[-period:]]
+    return sum(closes) / period
+
 def get_status_value(status_str):
     mapping = {"🔴": 0, "⚫": 1, "🟢": 2}
     return mapping.get(status_str, 3)
+
+def get_bb_signal(ha_close, bb_basis):
+    """
+    比較 HA 收盤價 vs 布林帶中軌
+    HA close > BB basis → 綠色 ▲
+    HA close < BB basis → 紅色 ▼
+    相等 → 灰色 —
+    """
+    if bb_basis is None:
+        return "—"
+    if ha_close > bb_basis:
+        return "▲"
+    elif ha_close < bb_basis:
+        return "▼"
+    else:
+        return "—"
 
 # ==================== 4. 幣種清單 ====================
 
@@ -151,7 +178,7 @@ with col_select:
 
 with col_btn:
     if st.button("⚡ 重新分析"):
-        st.cache_data.clear()  # 清除緩存，強制抓取最新數據
+        st.cache_data.clear()
         st.rerun()
 
 # --- 執行分析循環 ---
@@ -161,7 +188,6 @@ results = []
 
 for i, symbol in enumerate(symbols):
     percent = int(((i + 1) / len(symbols)) * 100)
-    # 動態進度條
     placeholder.markdown(f"""
         <div id="loader-container">
             <span class="terminal-text">DEEP SCANNING: {symbol} {percent}%</span>
@@ -169,22 +195,36 @@ for i, symbol in enumerate(symbols):
         </div>
     """, unsafe_allow_html=True)
     
-    # 分別抓取 1D 和 4H
     k1d_raw = get_crypto_data(symbol, "1D")
     k4h_raw = get_crypto_data(symbol, "4H")
     
     if k1d_raw and k4h_raw:
         ha1d = calculate_heikin_ashi(k1d_raw)
         ha4h = calculate_heikin_ashi(k4h_raw)
+
+        # ── 布林帶中軌 (SMA20)，使用原始日線收盤價計算 ──
+        # 對應 Pine: basis = ta.sma(close, 20)，日線級別
+        bb_basis_1d = calculate_bollinger_basis(k1d_raw, period=20)
+
+        # ── HA 當前日線收盤價 vs 布林帶中軌 ──
+        # 對應 Pine: daybasis = request.security('','D', basis, lookahead_on)
+        # 這裡直接用日線資料，ha1d[-1] 即當根平均K的收盤價
+        ha_close_1d = ha1d[-1]['close']
+        bb_signal = get_bb_signal(ha_close_1d, bb_basis_1d)
         
-        # 判斷顏色邏輯
+        # 原有 HA 顏色判斷
         p1d = "🟢" if ha1d[-2]['close'] > ha1d[-2]['open'] else ("🔴" if ha1d[-2]['close'] < ha1d[-2]['open'] else "⚫")
         c1d = "🟢" if ha1d[-1]['close'] > ha1d[-1]['open'] else ("🔴" if ha1d[-1]['close'] < ha1d[-1]['open'] else "⚫")
         p4h = "🟢" if ha4h[-2]['close'] > ha4h[-2]['open'] else ("🔴" if ha4h[-2]['close'] < ha4h[-2]['open'] else "⚫")
         c4h = "🟢" if ha4h[-1]['close'] > ha4h[-1]['open'] else ("🔴" if ha4h[-1]['close'] < ha4h[-1]['open'] else "⚫")
         
         results.append({
-            "幣種": symbol, "1D前": p1d, "1D當": c1d, "4H前": p4h, "4H當": c4h,
+            "幣種": symbol,
+            "1D前": p1d,
+            "1D當": c1d,
+            "4H前": p4h,
+            "4H當": c4h,
+            "BB中軌": bb_signal,         # ▲ / ▼ / —
             "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
         })
 
@@ -194,14 +234,17 @@ placeholder.empty()
 if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
     
-    # 樣式處理
     def color_logic(v):
+        # HA 燈號
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
         elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
+        # BB 中軌訊號
+        elif v == '▲': return 'color: #22c55e; font-weight: bold; font-size: 16px;'
+        elif v == '▼': return 'color: #ef4444; font-weight: bold; font-size: 16px;'
         return 'color: #64748b;'
 
     st.dataframe(
-        df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當"]),
+        df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
         use_container_width=True, 
         height=680,
         hide_index=True
