@@ -88,7 +88,7 @@ st.markdown("""
 
     /* 強制放大 dataframe 內所有文字格的字體，讓 ▲▼ 跟 emoji 等大 */
     [data-testid="stDataFrame"] iframe {
-        font-size: 20px !important;
+        font-size: 25px !important;
     }
 </style>
 """, unsafe_allow_html=True)
