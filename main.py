@@ -166,9 +166,9 @@ def get_bb_signal(ha_close, bb_basis):
     if bb_basis is None:
         return "—"
     if ha_close > bb_basis:
-        return "⬆"
+        return "▲"
     elif ha_close < bb_basis:
-        return "⬇"
+        return "▼"
     else:
         return "—"
 
