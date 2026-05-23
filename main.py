@@ -79,6 +79,16 @@ st.markdown("""
         box-shadow: 0 0 10px #13f21a;
     }
     [data-testid="stSpinner"] { display: none; }
+
+    /* 移除頁面上下 padding，消除外層捲軸 */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+    /* 讓 dataframe 容器不產生自己的捲軸 */
+    [data-testid="stDataFrame"] > div {
+        overflow: visible !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -261,7 +271,7 @@ if results:
         df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
         use_container_width=False,
         column_config=col_cfg,
-        height=680,
+        height=(len(df) + 1) * 35 + 10,  # 依列數自動計算高度，無內捲軸
         hide_index=True
     )
 
