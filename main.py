@@ -248,32 +248,87 @@ placeholder.empty()
 
 if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
-    
-    def color_logic(v):
-        # HA 燈號
-        if v == '🟢': return 'color: #22c55e; font-weight: bold;'
-        elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
-        # BB 中軌訊號 — 字體放大到和 emoji 相近
-        elif v == '▲': return 'color: #22c55e; font-weight: bold; font-size: 22px; line-height: 1;'
-        elif v == '▼': return 'color: #ef4444; font-weight: bold; font-size: 22px; line-height: 1;'
-        return 'color: #64748b;'
 
-    # 欄位寬度透過 CSS 控制，column_config 只保留標籤
-    col_cfg = {
-        "幣種":   st.column_config.TextColumn("幣種"),
-        "1D前":   st.column_config.TextColumn("1D前"),
-        "1D當":   st.column_config.TextColumn("1D當"),
-        "4H前":   st.column_config.TextColumn("4H前"),
-        "4H當":   st.column_config.TextColumn("4H當"),
-        "BB中軌": st.column_config.TextColumn("BB中軌"),
-    }
+    def cell_style(v):
+        if v == '🟢':  return 'color:#22c55e; font-weight:bold; font-size:20px;'
+        if v == '🔴':  return 'color:#ef4444; font-weight:bold; font-size:20px;'
+        if v == '⚫':  return 'color:#64748b; font-size:20px;'
+        if v == '▲':   return 'color:#22c55e; font-weight:bold; font-size:22px;'
+        if v == '▼':   return 'color:#ef4444; font-weight:bold; font-size:22px;'
+        return 'color:#64748b;'
 
-    st.dataframe(
-        df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
-        use_container_width=True,
-        column_config=col_cfg,
-        height=(len(df) + 1) * 35 + 10,  # 依列數自動計算，無內捲軸
-        hide_index=True
+    # ── 自訂 HTML 表格，完全掌控欄寬，無雙捲軸 ──
+    cols   = ["幣種", "1D前", "1D當", "4H前", "4H當", "BB中軌"]
+    widths = [  80,    58,    58,    58,    58,    68  ]   # px
+
+    header_cells = "".join(
+        f'<th style="width:{w}px;min-width:{w}px;max-width:{w}px;">{c}</th>'
+        for c, w in zip(cols, widths)
     )
+
+    rows_html = ""
+    for _, row in df.iterrows():
+        cells = ""
+        for c in cols:
+            v = row[c]
+            cells += f'<td style="{cell_style(v)}">{v}</td>'
+        rows_html += f"<tr>{cells}</tr>"
+
+    table_html = f"""
+    <style>
+        .ha-table-wrap {{
+            width: fit-content;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #334155;
+        }}
+        .ha-table {{
+            border-collapse: collapse;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            table-layout: fixed;
+        }}
+        .ha-table th {{
+            background-color: #0f172a;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            padding: 8px 6px;
+            text-align: center;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }}
+        .ha-table td {{
+            padding: 6px 6px;
+            text-align: center;
+            border-bottom: 1px solid #1e293b;
+            background-color: #1a2535;
+        }}
+        .ha-table tr:hover td {{
+            background-color: #243347;
+        }}
+        .ha-table td:first-child {{
+            color: #f1f5f9;
+            font-weight: 600;
+            text-align: left;
+            padding-left: 10px;
+        }}
+        .ha-table th:first-child {{
+            text-align: left;
+            padding-left: 10px;
+        }}
+    </style>
+    <div class="ha-table-wrap">
+        <table class="ha-table">
+            <thead><tr>{header_cells}</tr></thead>
+            <tbody>{rows_html}</tbody>
+        </table>
+    </div>
+    """
+
+    st.markdown(table_html, unsafe_allow_html=True)
 
 st.toast(f"✅ {selection} SYNC COMPLETE.", icon="⚡")
