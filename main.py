@@ -235,11 +235,11 @@ for i, symbol in enumerate(symbols):
         
         results.append({
             "幣種": symbol,
+            "BB中軌": bb_signal,
             "1D前": p1d,
             "1D當": c1d,
             "4H前": p4h,
             "4H當": c4h,
-            "BB中軌": bb_signal,         # ▲ / ▼ / —
             "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
         })
 
@@ -258,11 +258,11 @@ if results:
 
     col_cfg = {
         "幣種":   st.column_config.TextColumn("幣種",   width=80),
+        "BB中軌": st.column_config.TextColumn("BB中軌", width=70),
         "1D前":   st.column_config.TextColumn("1D前",   width=60),
         "1D當":   st.column_config.TextColumn("1D當",   width=60),
         "4H前":   st.column_config.TextColumn("4H前",   width=60),
         "4H當":   st.column_config.TextColumn("4H當",   width=60),
-        "BB中軌": st.column_config.TextColumn("BB中軌", width=70),
     }
 
     st.dataframe(
