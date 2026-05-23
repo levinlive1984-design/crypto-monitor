@@ -85,10 +85,11 @@ st.markdown("""
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
     }
-    /* 讓 dataframe 容器不產生自己的捲軸 */
-    [data-testid="stDataFrame"] > div {
-        overflow: visible !important;
-    }
+    /* 用 CSS 壓縮 dataframe 欄寬，保留凍結表頭 */
+    [data-testid="stDataFrame"] th:nth-child(1),
+    [data-testid="stDataFrame"] td:nth-child(1) { min-width: 70px !important; max-width: 80px !important; }
+    [data-testid="stDataFrame"] th:nth-child(n+2),
+    [data-testid="stDataFrame"] td:nth-child(n+2) { min-width: 50px !important; max-width: 60px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -257,21 +258,21 @@ if results:
         elif v == '▼': return 'color: #ef4444; font-weight: bold; font-size: 22px; line-height: 1;'
         return 'color: #64748b;'
 
-    # 欄位寬度設定：窄化 1D/4H/BB 欄
+    # 欄位寬度透過 CSS 控制，column_config 只保留標籤
     col_cfg = {
-        "幣種":   st.column_config.TextColumn("幣種",   width=80),
-        "1D前":   st.column_config.TextColumn("1D前",   width=60),
-        "1D當":   st.column_config.TextColumn("1D當",   width=60),
-        "4H前":   st.column_config.TextColumn("4H前",   width=60),
-        "4H當":   st.column_config.TextColumn("4H當",   width=60),
-        "BB中軌": st.column_config.TextColumn("BB中軌", width=70),
+        "幣種":   st.column_config.TextColumn("幣種"),
+        "1D前":   st.column_config.TextColumn("1D前"),
+        "1D當":   st.column_config.TextColumn("1D當"),
+        "4H前":   st.column_config.TextColumn("4H前"),
+        "4H當":   st.column_config.TextColumn("4H當"),
+        "BB中軌": st.column_config.TextColumn("BB中軌"),
     }
 
     st.dataframe(
         df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
-        use_container_width=False,
+        use_container_width=True,
         column_config=col_cfg,
-        height=(len(df) + 1) * 35 + 10,  # 依列數自動計算高度，無內捲軸
+        height=(len(df) + 1) * 35 + 10,  # 依列數自動計算，無內捲軸
         hide_index=True
     )
 
