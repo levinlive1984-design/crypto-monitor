@@ -85,6 +85,11 @@ st.markdown("""
         padding-top: 3.5rem !important;
         padding-bottom: 0rem !important;
     }
+
+    /* 強制放大 dataframe 內所有文字格的字體，讓 ▲▼ 跟 emoji 等大 */
+    [data-testid="stDataFrame"] iframe {
+        font-size: 20px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -154,16 +159,16 @@ def get_status_value(status_str):
 def get_bb_signal(ha_close, bb_basis):
     """
     比較 HA 收盤價 vs 布林帶中軌
-    HA close > BB basis → 綠色 🔺
-    HA close < BB basis → 紅色 🔻
+    HA close > BB basis → 綠色 ⬆
+    HA close < BB basis → 紅色 ⬇
     相等 → 灰色 —
     """
     if bb_basis is None:
         return "—"
     if ha_close > bb_basis:
-        return "🔺"
+        return "⬆"
     elif ha_close < bb_basis:
-        return "🔻"
+        return "⬇"
     else:
         return "—"
 
@@ -247,8 +252,8 @@ if results:
     def color_logic(v):
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
         elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
-        elif v == '🔺': return 'color: #22c55e; font-weight: bold;'
-        elif v == '🔻': return 'color: #ef4444; font-weight: bold;'
+        elif v == '⬆': return 'color: #22c55e; font-weight: bold;'
+        elif v == '⬇': return 'color: #ef4444; font-weight: bold;'
         return 'color: #64748b;'
 
     col_cfg = {
