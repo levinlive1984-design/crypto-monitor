@@ -195,7 +195,7 @@ def format_price(price):
 # ==================== 4. 幣種清單 ====================
 
 SYMBOLS_CONFIG = {
-    "考試幣": ["ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME","1INCH", "AIXBT", "ALGO", "APT", "ASTER", "AXS", "BONK", "BRETT", "CAKE", "CHZ", "COMP", "CRV", "DEGEN", "DOG", "DYDX", "EGLD", "ENA", "ENJ", "FART", "FLR", "GALA", "GLM", "GMX", "GRASS", "GRT", "HBAR", "HYPE", "ICP", "IMX", "INJ", "IP", "JTO", "JUP", "KAITO", "KAS", "KAVA", "LDO", "LPT", "LRC", "MANA", "MANTA", "MEME", "MOODENG", "NEAR", "OKB", "ONDO", "PAXG", "PENDLE", "PENGU", "PNUT", "POL", "POPCAT", "PUMP", "PYTH", "RAY", "RENDER", "ROSE", "RPL", "RSR", "RUNE", "S", "SAND", "SEI", "SNX", "STRK", "STX", "SUSHI", "TAO", "TIA", "TON", "TRUMP", "TRX", "VET", "VIRTUAL", "W", "WIF", "XPL", "YFI", "ZEC"],
+    "考試幣": ["ADA", "BTC", "DOGE", "ETH", "LINK"],
     "全部": ["A","A2Z","AAVE","ACE","ACH","ACT","ACU","ADA","AERGO","AERO","AEVO","AGIX","AGLD","AGT","AI","AI16Z","AIA","AIGENSYN","AIN","AIO","AIOT","AIXBT","AKE","AKT","ALCH","ALGO","ALICE","ALL","ALLO","ALPHA","ALPINE","ALT","ANIME","ANKR","ANT","ANTHROPIC","APE","API3","APR","APT","AR","ARB","ARC","ARIA","ARK","ARKM","ARPA","ASR","ASTER","ASTR","AT","ATA","ATH","ATOM","AUCTION","AUDIO","AVAX","AVNT","AWE","AXL","AXS","AZTEC","B","B3","BABY","BABYDOGE","BADGER","BAKE","BAL","BAN","BANANA","BANANAS31","BAND","BANK","BARD","BAS","BASED","BAT","BB","BCH","BDXN","BEAMX","BEAT","BEL","BERA","BICO","BIGTIME","BILL","BIO","BIRB","BLEND","BLESS","BLUAI","BLUR","BLZ","BNB","BNT","BNX","BOB","BOME","BOND","BONK","BR","BRENTOIL","BRETT","BREV","BROCCOLI","BSB","BSV","BTC","BTR","BTW","BULLA","C98","CAKE","CAR","CARV","CATI","CBRS","CC","CELO","CELR","CETUS","CFG","CFX","CHEEMS","CHIP","CHR","CHZ","CKB","CL","CLANKER","CLO","CNBARS","CNLX","CNWTMLL","COAI","COLLECT","COMBO","COMMON","COMP","COOKIE","COPPER","COTI","COW","CRO","CROSS","CRV","CTR","CUDIS","CVC","CVX","CYBER","CYS","DAM","DAR","DASH","DEAGENTAI","DEGEN","DIA","DODO","DOGE","DOGS","DOLO","DOT","DRIFT","DUSK","DYDX","DYM","EDGE","EDU","EGLD","EIGEN","ELSA","ENA","ENJ","ENS","ENSO","EOS","EPT","ESP","ESPORTS","ETC","ETH","ETHFI","ETHW","EUL","EVAA","F","FARTCOIN","FET","FF","FHE","FIGHT","FIL","FIO","FLM","FLOCK","FLOKI","FLOW","FLUID","FOGO","FOLKS","FORTH","FOUR","FOURTWO","FRAX","FRONT","FTM","FTT","FUN","FXS","GAL","GALA","GAS","GENIUS","GIGGLE","GLMR","GMT","GMX","GOAT","GPS","GRASS","GRIFFAIN","GRT","GTC","GUA","GUN","GWEI","H","HAEDAL","HANA","HBAR","HEMI","HFT","HIFI","HIGH","HIPPO","HMSTR","HNT","HOLO","HOME","HOOK","HUMA","HYPE","HYUNDAI","ICNT","ICP","ICX","ID","IDEX","IDOL","ILV","IMX","IN","INCH","INFQX","INIT","INJ","INX","IO","IOST","IOTA","IOTX","IP","IR","IRYS","JASMY","JCT","JELLYJELLY","JOE","JTO","JUP","KAIA","KAITO","KAS","KAT","KAVA","KERNEL","KGEN","KITE","KLAY","KMNO","KNC","LA","LAB","LAUNCHCOIN","LAYER","LDO","LEVER","LIGHT","LIGHTER","LINA","LINEA","LINK","LISTA","LIT","LOKA","LOOM","LPT","LQTY","LRC","LSK","LTC","LUNA2","LUNC","LYN","MAGIC","MAGMA","MANA","MANTA","MANTRA","MASK","MATIC","MAV","MAVIA","MBL","MBOX","MDT","ME","MEGA","MELANIA","MEME","MERL","MET","METIS","MEW","MINA","MITO","MKR","MLN","MMT","MNT","MON","MOODENG","MOVE","MOVR","MTL","MUBARAK","MYRO","MYX","NAORIS","NATGAS","NEAR","NEIROCTO","NEIROETH","NEO","NFP","NIGHT","NIL","NKN","NMR","NOM","NOT","NOWX","NTRN","NXPC","OCEAN","OFC","OG","OGN","OKB","OL","OM","OMG","OMNI","ON","ONDO","ONE","ONG","ONT","OP","OPEN","OPENAI","OPENEDEN","OPG","OPN","ORBS","ORCA","ORDER","ORDI","OXT","PARTI","PAXG","PENDLE","PENGU","PEOPLE","PEPE","PERP","PHA","PHB","PI","PIEVERSE","PIGGY","PIPPIN","PIXEL","PLAY","PLUME","PNUT","POL","POLYX","PONKE","POPCAT","PORT3","PORTAL","POWER","POWR","PRL","PROMPT","PROS","PROVE","PTB","PUFFER","PUMP","PUMPFUN","PYTH","Q","QNT","QNTX","QTUM","RAD","RARE","RATS","RAVE","RAY","RDNT","RECALL","REEF","RENDER","RESOLV","REZ","RHEA","RIF","RIVER","RLC","RLS","RNDR","ROBO","RON","ROSE","RPL","RSR","RSS3","RUNE","RVN","RVV","S","SAGA","SAHARA","SAND","SAPIEN","SATS","SCR","SCRT","SEI","SENT","SFP","SHELL","SHIB","SIREN","SKATE","SKHX","SKL","SKR","SKY","SKYAI","SLERF","SLP","SLX","SMSN","SNT","SNX","SOL","SOLV","SOMI","SOON","SOPH","SPACE","SPELL","SPK","SPORTFUN","SPX","SQD","SRM","SSV","STABLE","STAR","STARL","STBL","STEEM","STG","STMX","STO","STORJ","STPT","STRAX","STRK","STX","SUI","SUN","SUPER","SUSHI","SWARMS","SXP","SXT","SYRUP","SYS","T","TA","TAC","TAIKO","TAKE","TANSSI","TAO","THE","THETA","TIA","TLM","TNSR","TOKEN","TOMO","TON","TOSHI","TOWNS","TRADOOR","TRB","TREE","TRIA","TRU","TRUMP","TRUST","TRUTH","TRX","TST","TURBO","TURTLE","TUT","TWOZ","TWT","UAI","UB","UMA","UNFI","UNI","UP","US","USD","USDC","USDE","USELESS","USTC","USUAL","UXLINK","VANRY","VELODROME","VELVET","VET","VIDT","VINE","VIRTUAL","VOXEL","VRA","VVV","W","WAL","WAVES","WAXP","WCT","WET","WIF","WLD","WLFI","WOO","XAG","XAI","XAN","XAU","XAUT","XEC","XEM","XLM","XMR","XNO","XNY","XPD","XPIN","XPL","XPT","XRP","XTZ","XVG","XVS","YALA","YB","YFI","YGG","YZY","ZAMA","ZBT","ZEC","ZEN","ZEREBRO","ZEROG","ZEST","ZETA","ZIL","ZKC","ZKF","ZKP","ZKSYNC","ZORA","ZRC","ZRO","ZRX"]
 }
 
@@ -255,9 +255,18 @@ for i, symbol in enumerate(symbols):
         p4h = "🟢" if ha4h[-2]['close'] > ha4h[-2]['open'] else ("🔴" if ha4h[-2]['close'] < ha4h[-2]['open'] else "⚫")
         c4h = "🟢" if ha4h[-1]['close'] > ha4h[-1]['open'] else ("🔴" if ha4h[-1]['close'] < ha4h[-1]['open'] else "⚫")
         
+        # 計算現價 vs BB中軌的百分比
+        if bb_basis_1d and bb_basis_1d > 0:
+            bb_pct = ((current_price - bb_basis_1d) / bb_basis_1d) * 100
+            bb_pct_str = f"{bb_pct:+.2f}%"
+        else:
+            bb_pct = 0
+            bb_pct_str = "—"
+        
         results.append({
             "幣種": symbol,
             "現價": format_price(current_price),
+            "差%": bb_pct_str,
             "BB日中軌": format_price(bb_basis_1d),
             "BB中軌": bb_signal,
             "1D前": p1d,
@@ -267,6 +276,7 @@ for i, symbol in enumerate(symbols):
             "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h)),
             "_price": current_price,
             "_bb1d": bb_basis_1d if bb_basis_1d else 0,
+            "_bb_pct": bb_pct,
         })
 
 # 清除進度條並顯示表格
@@ -277,16 +287,25 @@ if results:
 
     # ── 現價顏色：現價 > 日線BB中軌 → 綠；< → 紅 ──
     price_styles = []
+    pct_styles = []
     for _, row in df.iterrows():
-        p, b = row["_price"], row["_bb1d"]
+        p, b, pct = row["_price"], row["_bb1d"], row["_bb_pct"]
         if b > 0 and p > b:
             price_styles.append('color: #22c55e; font-weight: bold;')
         elif b > 0 and p < b:
             price_styles.append('color: #ef4444; font-weight: bold;')
         else:
             price_styles.append('')
+        
+        # 差%顏色：正數→綠；負數→紅
+        if pct > 0:
+            pct_styles.append('color: #22c55e; font-weight: bold;')
+        elif pct < 0:
+            pct_styles.append('color: #ef4444; font-weight: bold;')
+        else:
+            pct_styles.append('')
 
-    display_df = df.drop(columns=["_price", "_bb1d"])
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct"])
 
     def color_logic(v):
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
@@ -297,11 +316,15 @@ if results:
 
     def color_price(col):
         return pd.Series(price_styles, index=col.index)
+    
+    def color_pct(col):
+        return pd.Series(pct_styles, index=col.index)
 
     col_cfg = {
         "幣種":    st.column_config.TextColumn("幣種",    width=80),
         "現價":    st.column_config.TextColumn("現價",    width=100),
-        "BB中軌": st.column_config.TextColumn("BB中軌", width=100),
+        "差%":     st.column_config.TextColumn("差%",     width=90),
+        "BB日中軌": st.column_config.TextColumn("BB日中軌", width=100),
         "BB中軌":  st.column_config.TextColumn("BB中軌",  width=70),
         "1D前":    st.column_config.TextColumn("1D前",    width=60),
         "1D當":    st.column_config.TextColumn("1D當",    width=60),
@@ -313,6 +336,7 @@ if results:
         display_df.style
         .map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"])
         .apply(color_price, subset=["現價"], axis=0)
+        .apply(color_pct, subset=["差%"], axis=0)
     )
 
     st.dataframe(
