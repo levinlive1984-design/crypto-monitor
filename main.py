@@ -232,18 +232,13 @@ for i, symbol in enumerate(symbols):
     
     k1d_raw = get_crypto_data(symbol, "1D")
     k4h_raw = get_crypto_data(symbol, "4H")
-    k1w_raw = get_crypto_data(symbol, "1W")
     
     if k1d_raw and k4h_raw:
         ha1d = calculate_heikin_ashi(k1d_raw)
         ha4h = calculate_heikin_ashi(k4h_raw)
 
         # ── 布林帶中軌 (SMA20)，使用原始日線收盤價計算 ──
-        # 對應 Pine: basis = ta.sma(close, 20)，日線級別
         bb_basis_1d = calculate_bollinger_basis(k1d_raw, period=20)
-
-        # ── 布林帶週線中軌 (SMA20) ──
-        bb_basis_1w = calculate_bollinger_basis(k1w_raw, period=20) if k1w_raw else None
 
         # ── 現價 (最新 4H 收盤) ──
         current_price = k4h_raw[-1]['close']
@@ -264,13 +259,14 @@ for i, symbol in enumerate(symbols):
             "幣種": symbol,
             "現價": format_price(current_price),
             "BB日中軌": format_price(bb_basis_1d),
-            "BB週中軌": format_price(bb_basis_1w),
             "BB中軌": bb_signal,
             "1D前": p1d,
             "1D當": c1d,
             "4H前": p4h,
             "4H當": c4h,
-            "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h))
+            "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h)),
+            "_price": current_price,
+            "_bb1d": bb_basis_1d if bb_basis_1d else 0,
         })
 
 # 清除進度條並顯示表格
@@ -279,6 +275,19 @@ placeholder.empty()
 if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
+    # ── 現價顏色：現價 > 日線BB中軌 → 綠；< → 紅 ──
+    price_styles = []
+    for _, row in df.iterrows():
+        p, b = row["_price"], row["_bb1d"]
+        if b > 0 and p > b:
+            price_styles.append('color: #22c55e; font-weight: bold;')
+        elif b > 0 and p < b:
+            price_styles.append('color: #ef4444; font-weight: bold;')
+        else:
+            price_styles.append('')
+
+    display_df = df.drop(columns=["_price", "_bb1d"])
+
     def color_logic(v):
         if v == '🟢': return 'color: #22c55e; font-weight: bold;'
         elif v == '🔴': return 'color: #ef4444; font-weight: bold;'
@@ -286,11 +295,13 @@ if results:
         elif v == '❌': return ''
         return 'color: #64748b;'
 
+    def color_price(col):
+        return pd.Series(price_styles, index=col.index)
+
     col_cfg = {
         "幣種":    st.column_config.TextColumn("幣種",    width=80),
         "現價":    st.column_config.TextColumn("現價",    width=100),
         "BB日中軌": st.column_config.TextColumn("BB日中軌", width=100),
-        "BB週中軌": st.column_config.TextColumn("BB週中軌", width=100),
         "BB中軌":  st.column_config.TextColumn("BB中軌",  width=70),
         "1D前":    st.column_config.TextColumn("1D前",    width=60),
         "1D當":    st.column_config.TextColumn("1D當",    width=60),
@@ -298,11 +309,17 @@ if results:
         "4H當":    st.column_config.TextColumn("4H當",    width=60),
     }
 
+    styled = (
+        display_df.style
+        .map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"])
+        .apply(color_price, subset=["現價"], axis=0)
+    )
+
     st.dataframe(
-        df.style.map(color_logic, subset=["1D前", "1D當", "4H前", "4H當", "BB中軌"]),
+        styled,
         use_container_width=False,
         column_config=col_cfg,
-        height=(len(df) + 1) * 35 + 3,  # 精確撐滿不留空，消除內捲軸
+        height=(len(display_df) + 1) * 35 + 3,
         hide_index=True
     )
 
