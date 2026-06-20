@@ -4,8 +4,41 @@ import streamlit as st
 from datetime import datetime, timezone, timedelta
 import time
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
+
+# ==================== 0. matplotlib 中文字型設定 ====================
+# 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
+_CJK_FONT_CANDIDATES = [
+    "Noto Sans CJK TC", "Noto Sans CJK SC", "Noto Sans TC", "Noto Sans SC",
+    "Microsoft JhengHei", "Microsoft YaHei", "PingFang TC", "PingFang SC",
+    "Heiti TC", "SimHei", "WenQuanYi Zen Hei", "Arial Unicode MS",
+]
+_installed_fonts = {f.name for f in fm.fontManager.ttflist}
+_chosen_font = next((f for f in _CJK_FONT_CANDIDATES if f in _installed_fonts), None)
+
+if _chosen_font:
+    plt.rcParams["font.sans-serif"] = [_chosen_font]
+else:
+    # 系統完全沒有中文字型時，嘗試載入隨包附帶/下載的 Noto Sans TC
+    import os
+    _font_path = "/tmp/NotoSansTC-Regular.ttf"
+    try:
+        if not os.path.exists(_font_path):
+            import urllib.request
+            urllib.request.urlretrieve(
+                "https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf",
+                _font_path,
+            )
+        fm.fontManager.addfont(_font_path)
+        _chosen_font = fm.FontProperties(fname=_font_path).get_name()
+        plt.rcParams["font.sans-serif"] = [_chosen_font]
+    except Exception:
+        # 下載失敗則維持預設字型（中文仍可能顯示為方塊，但不影響程式執行）
+        pass
+
+plt.rcParams["axes.unicode_minus"] = False
 
 # 台灣時區 UTC+8
 TW_TZ = timezone(timedelta(hours=8))
