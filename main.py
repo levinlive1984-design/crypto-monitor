@@ -436,6 +436,12 @@ if results:
                     ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.12, color='#22c55e', step='post', zorder=1)
                     ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.12, color='#ef4444', step='post', zorder=1)
 
+                    # 給 Y 軸留一些空間，避免最新 % 數字被切掉
+                    if y:
+                        y_min = min(y) - 4
+                        y_max = max(y) + 4
+                        ax.set_ylim(y_min, y_max)
+
                     # 設定
                     ax.set_xlim(-0.5, n - 0.5)
                     ax.set_xticks(x[::2])  # 每隔一天顯示日期，避免太密
