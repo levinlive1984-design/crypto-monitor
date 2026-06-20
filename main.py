@@ -228,12 +228,21 @@ with col_btn:
         st.cache_data.clear()
         st.rerun()
 
-# --- 搜尋框（方便從圖表快速找到對應幣種） ---
+# --- 搜尋框（使用 session_state 控制，支援「套用至搜尋框」按鈕） ---
+if "search_term" not in st.session_state:
+    st.session_state.search_term = ""
+
 search_term = st.text_input(
     "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
+    value=st.session_state.search_term,
     placeholder="例如：BTC、ETH、DOGE",
-    label_visibility="collapsed"
+    label_visibility="collapsed",
+    key="search_input"
 )
+
+# 讓使用者手動輸入時也能同步更新 session_state
+if search_term != st.session_state.search_term:
+    st.session_state.search_term = search_term
 
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
@@ -340,9 +349,9 @@ if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
     # 圖表區專用的過濾結果（支援多幣種，用「、」或「,」分隔）
-    if search_term:
-        # 支援 "BTC、ETH、DOGE" 或 "BTC,ETH,DOGE" 格式
-        search_terms = [t.strip().upper() for t in search_term.replace("、", ",").split(",") if t.strip()]
+    active_search = st.session_state.get("search_term", "") or search_term
+    if active_search:
+        search_terms = [t.strip().upper() for t in active_search.replace("、", ",").split(",") if t.strip()]
         if search_terms:
             chart_results = [r for r in results if any(term in r["幣種"].upper() for term in search_terms)]
         else:
@@ -433,10 +442,10 @@ if results:
             else:
                 st.warning("請先勾選")
 
-        # 套用至搜尋框
+        # 套用至搜尋框（直接更新 session_state + rerun，讓輸入框立刻顯示）
         if st.session_state.get("copy_text"):
             if st.button("套用至搜尋框", use_container_width=True):
-                st.session_state["search_term"] = st.session_state["copy_text"]
+                st.session_state.search_term = st.session_state["copy_text"]
                 st.rerun()
 
         # JavaScript 直接複製 + 視覺回饋（類似你運動版）
