@@ -422,18 +422,70 @@ if results:
 
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
+
         if st.button("📋 複製", type="primary", use_container_width=True):
             selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
             if selected:
                 copy_text = "、".join(selected)
                 st.session_state["copy_text"] = copy_text
+                st.session_state["just_copied"] = True
                 st.success(f"已複製 {len(selected)} 個")
             else:
                 st.warning("請先勾選")
 
+        # 套用至搜尋框
         if st.session_state.get("copy_text"):
-            st.code(st.session_state["copy_text"], language=None)
-            st.caption("↑ 複製上方文字，貼到搜尋框即可快速篩選圖表")
+            if st.button("套用至搜尋框", use_container_width=True):
+                st.session_state["search_term"] = st.session_state["copy_text"]
+                st.rerun()
+
+        # JavaScript 直接複製 + 視覺回饋（類似你運動版）
+        if st.session_state.get("just_copied") and st.session_state.get("copy_text"):
+            js_code = f"""
+            <script>
+            (function() {{
+                const text = `{st.session_state['copy_text']}`;
+                function flashSuccess() {{
+                    const buttons = window.parent.document.querySelectorAll('button');
+                    for (let b of buttons) {{
+                        if (b.innerText.includes('複製')) {{
+                            const origText = b.innerHTML;
+                            const origStyle = b.style.cssText;
+                            b.innerHTML = '✅ 已複製';
+                            b.style.background = '#22c55e';
+                            b.style.color = 'white';
+                            setTimeout(() => {{
+                                b.innerHTML = origText;
+                                b.style.cssText = origStyle;
+                            }}, 1600);
+                            break;
+                        }}
+                    }}
+                }}
+                if (navigator.clipboard && navigator.clipboard.writeText) {{
+                    navigator.clipboard.writeText(text).then(flashSuccess).catch(() => {{
+                        fallbackCopy(text, flashSuccess);
+                    }});
+                }} else {{
+                    fallbackCopy(text, flashSuccess);
+                }}
+                function fallbackCopy(txt, cb) {{
+                    const ta = document.createElement('textarea');
+                    ta.value = txt;
+                    ta.style.position = 'fixed';
+                    ta.style.top = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    if (cb) cb();
+                }}
+            }})();
+            </script>
+            """
+            st.components.v1.html(js_code, height=0)
+            st.session_state["just_copied"] = False
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
