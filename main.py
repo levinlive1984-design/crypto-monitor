@@ -123,6 +123,10 @@ st.markdown("""
     .st-key-floating_action_bar [data-testid="stButton"]:last-child {
         margin-bottom: 0;
     }
+    .st-key-floating_action_bar .stButton>button {
+        font-size: 12px !important;
+        padding: 4px 8px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -252,6 +256,9 @@ with col_btn:
 # --- 圖表篩選狀態（不再使用搜尋框，改由「🎯 選幣」與「📊 顯示圖表」按鈕直接控制） ---
 if "applied_search" not in st.session_state:
     st.session_state.applied_search = ""
+
+if "editor_version" not in st.session_state:
+    st.session_state.editor_version = 0
 
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
@@ -393,7 +400,7 @@ if results:
             pct_styles.append('')
 
     # 準備帶勾選框的表格（移除「距離中軌%」）
-    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_abs_dev", "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20"]).copy()
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_abs_dev", "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20", "距離中軌%"]).copy()
     display_df.insert(0, "選取", False)  # 最前面加入勾選欄位
 
     def color_logic(v):
@@ -434,12 +441,13 @@ if results:
         column_config=col_cfg,
         height=(len(display_df) + 1) * 34 + 5,
         hide_index=True,
-        key="coin_selector"
+        key=f"coin_selector_{st.session_state.editor_version}"
     )
 
     with st.container(key="floating_action_bar"):
         pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
         show_all_clicked = st.button("📊 顯示圖表", use_container_width=True)
+        clear_clicked = st.button("🗑️ 清除勾選", use_container_width=True)
 
     # 「🎯 選幣」：把目前勾選的幣種直接套用，圖表立刻只顯示這些幣種
     if pick_clicked:
@@ -455,6 +463,12 @@ if results:
     if show_all_clicked:
         st.session_state.applied_search = ""
         st.toast("📊 已恢復顯示全部幣種圖表", icon="🔄")
+        st.rerun()
+
+    # 「🗑️ 清除勾選」：重置所有勾選（透過更換 data_editor key 強制清空）
+    if clear_clicked:
+        st.session_state.editor_version += 1
+        st.toast("🗑️ 已清除所有勾選", icon="✅")
         st.rerun()
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
