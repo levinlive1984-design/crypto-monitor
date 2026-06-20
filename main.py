@@ -386,20 +386,37 @@ if results:
         hide_index=True
     )
 
-    # ==================== 新增：各幣種 最近20根 HA收盤價 相對 BB中軌 % 偏差圖 ====================
+    # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
     st.markdown("### 📈 最近 20 根 HA 收盤價 vs BB中軌 % 偏差走勢圖")
 
-    # 只有當幣種數量合理時才預設開啟圖表，避免「全部」模式卡頓
-    default_show = len(results) <= 8
-    show_charts = st.checkbox("顯示各幣種 20期走勢圖 (2欄網格)", value=default_show)
+    # --- 圖表排序選單 ---
+    sort_option = st.selectbox(
+        "圖表排序方式",
+        options=[
+            "依「距離中軌%」距離近的排序（預設）",
+            "依目前的日K收盤價 > 開盤價排序（多頭優先）",
+            "依目前的日K收盤價 < 開盤價排序（空頭優先）",
+            "依幣種英文字母順序排序"
+        ],
+        index=0
+    )
 
-    if show_charts:
-        # 使用者表示願意等待，因此顯示所有幣種的圖表（不限制數量）
-        plot_results = chart_results
+    # 根據選擇的排序方式處理圖表列表
+    if sort_option == "依「距離中軌%」距離近的排序（預設）":
+        sorted_chart_results = sorted(chart_results, key=lambda x: x["_abs_dev"])
+    elif sort_option == "依目前的日K收盤價 > 開盤價排序（多頭優先）":
+        sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
+    elif sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
+        sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
+    else:  # 依幣種英文字母順序排序
+        sorted_chart_results = sorted(chart_results, key=lambda x: x["幣種"])
 
-        n_cols = 2 if len(plot_results) > 4 else 3
-        chart_cols = st.columns(n_cols)
+    # 直接顯示所有圖表（已移除 checkbox）
+    plot_results = sorted_chart_results
+
+    n_cols = 2 if len(plot_results) > 4 else 3
+    chart_cols = st.columns(n_cols)
 
         for idx, r in enumerate(plot_results):
             with chart_cols[idx % n_cols]:
