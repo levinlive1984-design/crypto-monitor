@@ -329,10 +329,14 @@ if results:
     # 表格使用原本的排序方式（依 1D前/1D當/4H前/4H當 的狀態排序）
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
-    # 圖表區專用的過濾結果（只影響下方圖表）
+    # 圖表區專用的過濾結果（支援多幣種，用「、」或「,」分隔）
     if search_term:
-        search_upper = search_term.upper()
-        chart_results = [r for r in results if search_upper in r["幣種"].upper()]
+        # 支援 "BTC、ETH、DOGE" 或 "BTC,ETH,DOGE" 格式
+        search_terms = [t.strip().upper() for t in search_term.replace("、", ",").split(",") if t.strip()]
+        if search_terms:
+            chart_results = [r for r in results if any(term in r["幣種"].upper() for term in search_terms)]
+        else:
+            chart_results = results
     else:
         chart_results = results
 
@@ -402,22 +406,23 @@ if results:
         key="coin_selector"
     )
 
-    # --- 複製選取幣種按鈕（橘色） ---
-    selected_coins = edited_df[edited_df["選取"] == True]["幣種"].tolist() if "選取" in edited_df.columns else []
+    # --- 複製選取幣種按鈕 ---
+    selected_coins = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
 
-    col1, col2 = st.columns([0.15, 0.85])
-    with col1:
+    col_btn, col_text = st.columns([0.18, 0.82])
+    with col_btn:
         if st.button("📋 複製選取幣種", type="primary", use_container_width=True):
             if selected_coins:
                 copy_text = "、".join(selected_coins)
                 st.session_state["copy_text"] = copy_text
-                st.success(f"已複製：{copy_text}")
+                st.success(f"已複製 {len(selected_coins)} 個幣種")
             else:
                 st.warning("請先勾選要複製的幣種")
 
-    with col2:
-        if "copy_text" in st.session_state and st.session_state["copy_text"]:
+    with col_text:
+        if st.session_state.get("copy_text"):
             st.code(st.session_state["copy_text"], language=None)
+            st.caption("↑ 複製上方文字，貼到搜尋框即可快速篩選圖表")
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
