@@ -450,16 +450,6 @@ if results:
                         spine.set_color('#475569')
                         spine.set_alpha(0.6)
 
-                    # 圖例
-                    from matplotlib.lines import Line2D
-                    legend_elements = [
-                        Line2D([0], [0], color='#fbbf24', linewidth=2.3, label='HA 多頭 (收>開)'),
-                        Line2D([0], [0], color='#B39DDB', linewidth=2.3, label='HA 空頭 (收<開)'),
-                        Line2D([0], [0], color='#64748b', linestyle='--', linewidth=1.5, label='BB中軌 (0%)')
-                    ]
-                    ax.legend(handles=legend_elements, loc='upper right', fontsize=7, framealpha=0.85, 
-                              facecolor='#1e293b', edgecolor='#475569')
-
                     # 在最新點旁標註目前數值
                     offset_y = 7 if curr_pct >= 0 else -13
                     ax.annotate(f'{curr_pct:+.2f}%', 
