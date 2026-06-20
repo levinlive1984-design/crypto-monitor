@@ -218,6 +218,13 @@ with col_btn:
         st.cache_data.clear()
         st.rerun()
 
+# --- 搜尋框（方便從圖表快速找到對應幣種） ---
+search_term = st.text_input(
+    "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
+    placeholder="例如：BTC、ETH、DOGE",
+    label_visibility="collapsed"
+)
+
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
 placeholder = st.empty()
@@ -308,6 +315,11 @@ for i, symbol in enumerate(symbols):
 placeholder.empty()
 
 if results:
+    # 如果有輸入搜尋字串，就過濾幣種
+    if search_term:
+        search_upper = search_term.upper()
+        results = [r for r in results if search_upper in r["幣種"].upper()]
+
     df = pd.DataFrame(results)
     # 預設排序：距離中軌最近的排在最上面
     df = df.sort_values(by="_abs_dev", ascending=True)
