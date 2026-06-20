@@ -358,7 +358,9 @@ if results:
         else:
             pct_styles.append('')
 
-    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_abs_dev", "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20"])
+    # 準備帶勾選框的表格（移除「距離中軌%」）
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_abs_dev", "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20"]).copy()
+    display_df.insert(0, "選取", False)  # 最前面加入勾選欄位
 
     def color_logic(v):
         if v in ['🟢', '✅']: return 'color: #22c55e; font-weight: bold;'
@@ -372,6 +374,7 @@ if results:
         return pd.Series(pct_styles, index=col.index)
 
     col_cfg = {
+        "選取":    st.column_config.CheckboxColumn("選取", width=50),
         "幣種":    st.column_config.TextColumn("幣種",    width=75),
         "現價":    st.column_config.TextColumn("現價",    width=95),
         "差%":     st.column_config.TextColumn("差%",     width=85),
@@ -381,7 +384,6 @@ if results:
         "1D當":    st.column_config.TextColumn("1D當",    width=55),
         "4H前":    st.column_config.TextColumn("4H前",    width=55),
         "4H當":    st.column_config.TextColumn("4H當",    width=55),
-        "距離中軌%": st.column_config.TextColumn("距離中軌%", width=90),
     }
 
     styled = (
@@ -391,13 +393,31 @@ if results:
         .apply(color_pct, subset=["差%"], axis=0)
     )
 
-    st.dataframe(
+    edited_df = st.data_editor(
         styled,
         use_container_width=False,
         column_config=col_cfg,
         height=(len(display_df) + 1) * 34 + 5,
-        hide_index=True
+        hide_index=True,
+        key="coin_selector"
     )
+
+    # --- 複製選取幣種按鈕（橘色） ---
+    selected_coins = edited_df[edited_df["選取"] == True]["幣種"].tolist() if "選取" in edited_df.columns else []
+
+    col1, col2 = st.columns([0.15, 0.85])
+    with col1:
+        if st.button("📋 複製選取幣種", type="primary", use_container_width=True):
+            if selected_coins:
+                copy_text = "、".join(selected_coins)
+                st.session_state["copy_text"] = copy_text
+                st.success(f"已複製：{copy_text}")
+            else:
+                st.warning("請先勾選要複製的幣種")
+
+    with col2:
+        if "copy_text" in st.session_state and st.session_state["copy_text"]:
+            st.code(st.session_state["copy_text"], language=None)
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
