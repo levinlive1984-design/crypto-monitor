@@ -395,11 +395,8 @@ if results:
     show_charts = st.checkbox("顯示各幣種 20期走勢圖 (2欄網格)", value=default_show)
 
     if show_charts:
-        if len(chart_results) > 20:
-            st.info(f"⚠️ 幣種數量較多（{len(chart_results)}），僅顯示前 20 個的圖表以維持效能。建議切換「考試幣」查看完整視覺化。")
-            plot_results = chart_results[:20]
-        else:
-            plot_results = chart_results
+        # 使用者表示願意等待，因此顯示所有幣種的圖表（不限制數量）
+        plot_results = chart_results
 
         n_cols = 2 if len(plot_results) > 4 else 3
         chart_cols = st.columns(n_cols)
