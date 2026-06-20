@@ -65,7 +65,7 @@ st.markdown("""
     .cyber-title {
         font-size: 22px; 
         font-weight: 700;
-        color: #fbbf24;
+        color: #FFEB3B;
         letter-spacing: 1.5px;
         margin-top: -15px;
     }
@@ -655,12 +655,12 @@ if results:
                     date_labels = [str(i) for i in range(n)]
 
                 # === 依每根 K 的方向著色階梯線 ===
-                # 黃色 (#fbbf24) = 當日 HA 收盤 > 開盤 (多頭)
+                # 黃色 (#FFEB3B) = 當日 HA 收盤 > 開盤 (多頭)
                 # 紫色 (#B39DDB) = 當日 HA 收盤 < 開盤 (空頭)
                 for i in range(n-1):
                     if i < len(ha_opens) and i < len(ha_closes):
                         is_bull = ha_closes[i] > ha_opens[i]
-                        seg_color = '#fbbf24' if is_bull else '#B39DDB'
+                        seg_color = '#FFEB3B' if is_bull else '#B39DDB'
                     else:
                         seg_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
 
@@ -670,7 +670,7 @@ if results:
                 # 目前最新點特別標註 (白色外框)
                 if n > 0:
                     ax.plot(x[-1], y[-1], 'o', color='white', markersize=8, zorder=7)
-                    final_color = '#fbbf24' if (ha_closes and ha_opens and ha_closes[-1] > ha_opens[-1]) else '#B39DDB'
+                    final_color = '#FFEB3B' if (ha_closes and ha_opens and ha_closes[-1] > ha_opens[-1]) else '#B39DDB'
                     ax.plot(x[-1], y[-1], 'o', color=final_color, markersize=4.5, zorder=8)
 
                 # 中軌基準線 (改為淡灰色)
