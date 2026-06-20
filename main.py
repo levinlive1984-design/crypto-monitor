@@ -657,9 +657,8 @@ if results:
                 ax.set_xlim(-0.5, n - 0.5)
                 ax.set_xticks(x[::2])  # 每隔一天顯示日期，避免太密
                 ax.set_xticklabels(date_labels[::2], rotation=45, ha='right', fontsize=7, color='#94a3b8')
-                ax.set_xlabel('日期 (台灣時間)', fontsize=8, color='#94a3b8')
-                ax.set_ylabel('% 相對 BB中軌', fontsize=9, color='#94a3b8')
-                ax.set_title(f"中軌價格 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
+                ax.set_ylabel('乖離中軌%', fontsize=9, color='#94a3b8')
+                ax.set_title(f"日線中軌 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
 
                 ax.tick_params(colors='#94a3b8', labelsize=7)
                 ax.grid(True, linestyle=':', alpha=0.35, color='#475569')
