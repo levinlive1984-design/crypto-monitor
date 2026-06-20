@@ -456,13 +456,13 @@ if results:
                         spine.set_color('#475569')
                         spine.set_alpha(0.6)
 
-                    # 在最新點左側標註目前數值（避免上下被切掉）
+                    # 在最新點下方標註目前數值（不會被遮擋）
                     ax.annotate(f'{curr_pct:+.2f}%', 
                                 xy=(x[-1], y[-1]), 
-                                xytext=(-14, 0),
+                                xytext=(0, -12),
                                 textcoords='offset points', 
-                                ha='right', 
-                                va='center',
+                                ha='center', 
+                                va='top',
                                 fontsize=8, 
                                 color=final_color, 
                                 fontweight='bold')
