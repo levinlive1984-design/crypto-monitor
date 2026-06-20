@@ -3,6 +3,8 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 import time
+import asyncio
+import aiohttp
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
@@ -249,33 +251,90 @@ def inject_panel_fab():
         width=0,
     )
 
-# ==================== 3. 核心抓取邏輯 (加上緩存保護) ====================
+# ==================== 3. 核心抓取邏輯 (asyncio + aiohttp 併發版，取代序列式 requests) ====================
 
-@st.cache_data(ttl=600)
-def get_crypto_data(symbol, interval):
-    """
-    從 Pionex 獲取數據，加上 timeout 避免掛起
-    """
+def _parse_klines(raw_klines):
+    """把 Pionex 回傳的原始 klines 轉成統一格式，並依時間排序"""
+    data = []
+    for k in raw_klines:
+        data.append({
+            "time": int(k["time"]) + 8 * 3600 * 1000,
+            "open": float(k["open"]),
+            "high": float(k["high"]),
+            "low": float(k["low"]),
+            "close": float(k["close"]),
+            "volume": float(k["volume"])
+        })
+    data.sort(key=lambda x: x["time"])
+    return data
+
+
+async def _fetch_klines_async(session, sem, symbol, interval):
+    """非同步抓取單一幣種/單一週期的 K 線，失敗回傳 None（不中斷其他任務）"""
     url = "https://api.pionex.com/api/v1/market/klines"
     params = {"symbol": f"{symbol}_USDT", "interval": interval, "limit": 150}
-    try:
-        resp = requests.get(url, params=params, timeout=5)
-        resp.raise_for_status()
-        klines = resp.json()["data"]["klines"]
-        data = []
-        for k in klines:
-            data.append({
-                "time": int(k["time"]) + 8*3600*1000,
-                "open": float(k["open"]),
-                "high": float(k["high"]),
-                "low": float(k["low"]),
-                "close": float(k["close"]),
-                "volume": float(k["volume"])
-            })
-        data.sort(key=lambda x: x["time"])
-        return data
-    except Exception:
-        return None
+    async with sem:
+        try:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                resp.raise_for_status()
+                payload = await resp.json()
+                return _parse_klines(payload["data"]["klines"])
+        except Exception:
+            return None
+
+
+async def _fetch_symbol_pair(session, sem, symbol):
+    """同一個幣種的 1D 與 4H 同時抓取"""
+    k1d, k4h = await asyncio.gather(
+        _fetch_klines_async(session, sem, symbol, "1D"),
+        _fetch_klines_async(session, sem, symbol, "4H"),
+    )
+    return symbol, k1d, k4h
+
+
+async def _fetch_all_symbols_async(symbols, on_progress=None, max_concurrency=30):
+    """
+    併發抓取所有幣種的 1D / 4H K線。
+    max_concurrency 限制同時連線數，避免瞬間打爆 Pionex API 被限流。
+    """
+    sem = asyncio.Semaphore(max_concurrency)
+    connector = aiohttp.TCPConnector(limit=max_concurrency)
+    out = {}
+    done = 0
+    total = len(symbols)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        tasks = [asyncio.create_task(_fetch_symbol_pair(session, sem, s)) for s in symbols]
+        for finished_task in asyncio.as_completed(tasks):
+            symbol, k1d, k4h = await finished_task
+            out[symbol] = (k1d, k4h)
+            done += 1
+            if on_progress:
+                on_progress(done, total)
+    return out
+
+
+@st.cache_data(ttl=600)
+def fetch_all_symbols_data(symbols_tuple, _placeholder=None):
+    """
+    對外的快取入口：用 asyncio.run 一次性併發抓完所有幣種，取代原本「一個一個 requests.get」的寫法。
+    參數加 `_` 前綴 (_placeholder) 讓 st.cache_data 不對它做雜湊比對，
+    這樣同樣的 symbols 在快取期限內就不會重抓，也不影響進度條顯示。
+    """
+    symbols = list(symbols_tuple)
+    total = len(symbols)
+
+    def _update_progress(done, total_count):
+        if _placeholder is None:
+            return
+        percent = int(done / total_count * 100) if total_count else 100
+        _placeholder.markdown(f"""
+            <div id="loader-container">
+                <span class="terminal-text">ASYNC SCANNING: {done}/{total_count} ({percent}%)</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: {percent}%;"></div></div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    return asyncio.run(_fetch_all_symbols_async(symbols, on_progress=_update_progress))
 
 def calculate_heikin_ashi(klines):
     if not klines: return []
@@ -379,23 +438,17 @@ if "applied_search" not in st.session_state:
 if "editor_version" not in st.session_state:
     st.session_state.editor_version = 0
 
-# --- 執行分析循環 ---
+# --- 執行分析循環（改為 asyncio 併發抓取，取代原本逐個 requests 的寫法） ---
 symbols = SYMBOLS_CONFIG[selection]
 placeholder = st.empty()
 results = []
 
-for i, symbol in enumerate(symbols):
-    percent = int(((i + 1) / len(symbols)) * 100)
-    placeholder.markdown(f"""
-        <div id="loader-container">
-            <span class="terminal-text">DEEP SCANNING: {symbol} {percent}%</span>
-            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: {percent}%;"></div></div>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    k1d_raw = get_crypto_data(symbol, "1D")
-    k4h_raw = get_crypto_data(symbol, "4H")
-    
+# 一次性併發抓完所有幣種的 1D / 4H K線（內部用 asyncio.gather 同時發出多個請求）
+klines_map = fetch_all_symbols_data(tuple(symbols), placeholder)
+
+for symbol in symbols:
+    k1d_raw, k4h_raw = klines_map.get(symbol, (None, None))
+
     if k1d_raw and k4h_raw:
         ha1d = calculate_heikin_ashi(k1d_raw)
         ha4h = calculate_heikin_ashi(k4h_raw)
