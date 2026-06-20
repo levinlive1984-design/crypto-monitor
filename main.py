@@ -106,11 +106,11 @@ st.markdown("""
     /* 浮動操作面板：選幣 + 顯示圖表，捲動表格時仍固定在畫面右側 */
     .st-key-floating_action_bar {
         position: fixed;
-        top: 110px;
+        top: 175px;
         right: 24px;
         z-index: 99999;
-        width: 168px;
-        padding: 10px;
+        width: 130px;
+        padding: 8px;
         background: rgba(15, 23, 42, 0.92);
         border: 1px solid rgba(19, 242, 26, 0.45);
         border-radius: 10px;
@@ -118,14 +118,15 @@ st.markdown("""
         backdrop-filter: blur(6px);
     }
     .st-key-floating_action_bar [data-testid="stButton"] {
-        margin-bottom: 8px;
+        margin-bottom: 5px;
     }
     .st-key-floating_action_bar [data-testid="stButton"]:last-child {
         margin-bottom: 0;
     }
     .st-key-floating_action_bar .stButton>button {
-        font-size: 12px !important;
-        padding: 4px 8px !important;
+        font-size: 10px !important;
+        padding: 3px 6px !important;
+        line-height: 1.4 !important;
     }
 </style>
 """, unsafe_allow_html=True)
