@@ -92,6 +92,16 @@ st.markdown("""
     [data-testid="stDataFrame"] iframe {
         font-size: 20px !important;
     }
+
+    /* 隱藏 data_editor / dataframe 標題列的排序箭頭與過濾圖示 */
+    [data-testid="stDataEditor"] .ag-header-cell-label .ag-header-cell-text::after,
+    [data-testid="stDataFrame"] .ag-header-cell-label .ag-header-cell-text::after {
+        content: none !important;
+    }
+    .ag-header-cell-menu-button,
+    .ag-sort-indicator {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -397,29 +407,30 @@ if results:
         .apply(color_pct, subset=["差%"], axis=0)
     )
 
-    edited_df = st.data_editor(
-        styled,
-        use_container_width=False,
-        column_config=col_cfg,
-        height=(len(display_df) + 1) * 34 + 5,
-        hide_index=True,
-        key="coin_selector"
-    )
+    # 左右分欄：左側表格 + 右側浮動複製按鈕
+    col_table, col_btn = st.columns([0.86, 0.14])
 
-    # --- 複製選取幣種按鈕 ---
-    selected_coins = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
+    with col_table:
+        edited_df = st.data_editor(
+            styled,
+            use_container_width=True,
+            column_config=col_cfg,
+            height=(len(display_df) + 1) * 34 + 5,
+            hide_index=True,
+            key="coin_selector"
+        )
 
-    col_btn, col_text = st.columns([0.18, 0.82])
     with col_btn:
-        if st.button("📋 複製選取幣種", type="primary", use_container_width=True):
-            if selected_coins:
-                copy_text = "、".join(selected_coins)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("📋 複製", type="primary", use_container_width=True):
+            selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
+            if selected:
+                copy_text = "、".join(selected)
                 st.session_state["copy_text"] = copy_text
-                st.success(f"已複製 {len(selected_coins)} 個幣種")
+                st.success(f"已複製 {len(selected)} 個")
             else:
-                st.warning("請先勾選要複製的幣種")
+                st.warning("請先勾選")
 
-    with col_text:
         if st.session_state.get("copy_text"):
             st.code(st.session_state["copy_text"], language=None)
             st.caption("↑ 複製上方文字，貼到搜尋框即可快速篩選圖表")
