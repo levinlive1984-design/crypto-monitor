@@ -492,13 +492,17 @@ if results:
                     spine.set_color('#475569')
                     spine.set_alpha(0.6)
 
-                # 在最新點下方標註目前數值（不會被遮擋）
+                # 根據正負號動態放置 % 標註
+                # 正數放在上方，負數放在下方
+                offset_y = 10 if curr_pct >= 0 else -14
+                va_align = 'bottom' if curr_pct >= 0 else 'top'
+
                 ax.annotate(f'{curr_pct:+.2f}%', 
                             xy=(x[-1], y[-1]), 
-                            xytext=(0, -12),
+                            xytext=(0, offset_y),
                             textcoords='offset points', 
                             ha='center', 
-                            va='top',
+                            va=va_align,
                             fontsize=8, 
                             color=final_color, 
                             fontweight='bold')
