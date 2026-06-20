@@ -258,6 +258,12 @@ for i, symbol in enumerate(symbols):
 
         bb_signal = get_bb_signal(ha_close_curr, bb_basis_1d)
         
+        # 原有 HA 顏色判斷（1D前、1D當、4H前、4H當）
+        p1d = "🟢" if ha1d[-2]['close'] > ha1d[-2]['open'] else ("🔴" if ha1d[-2]['close'] < ha1d[-2]['open'] else "⚫")
+        c1d = "🟢" if ha1d[-1]['close'] > ha1d[-1]['open'] else ("🔴" if ha1d[-1]['close'] < ha1d[-1]['open'] else "⚫")
+        p4h = "🟢" if ha4h[-2]['close'] > ha4h[-2]['open'] else ("🔴" if ha4h[-2]['close'] < ha4h[-2]['open'] else "⚫")
+        c4h = "🟢" if ha4h[-1]['close'] > ha4h[-1]['open'] else ("🔴" if ha4h[-1]['close'] < ha4h[-1]['open'] else "⚫")
+        
         # 計算現價 vs BB中軌的百分比 (維持原有「差%」)
         if bb_basis_1d and bb_basis_1d > 0:
             bb_pct = ((current_price - bb_basis_1d) / bb_basis_1d) * 100
@@ -297,13 +303,18 @@ for i, symbol in enumerate(symbols):
             "幣種": symbol,
             "現價": format_price(current_price),
             "差%": bb_pct_str,
-            "距離中軌%": abs_dev_str,
             "BB日中軌": format_price(bb_basis_1d),
             "BB中軌": bb_signal,
+            "1D前": p1d,
+            "1D當": c1d,
+            "4H前": p4h,
+            "4H當": c4h,
+            "距離中軌%": abs_dev_str,   # 保留新欄位，方便排序找接近中軌的幣種
             "_price": current_price,
             "_bb1d": bb_basis_1d if bb_basis_1d else 0,
             "_bb_pct": bb_pct,
             "_abs_dev": abs_dev,
+            "val": (get_status_value(p1d), get_status_value(c1d), get_status_value(p4h), get_status_value(c4h)),
             "_ha_pct_series": ha_pct_series,
             "_ha_curr_pct": ha_curr_pct,
             "_ha_opens_last20": ha_opens_last20,
@@ -315,10 +326,8 @@ for i, symbol in enumerate(symbols):
 placeholder.empty()
 
 if results:
-    # 表格永遠顯示完整列表（不受搜尋影響）
-    df = pd.DataFrame(results)
-    # 預設排序：距離中軌最近的排在最上面
-    df = df.sort_values(by="_abs_dev", ascending=True)
+    # 表格使用原本的排序方式（依 1D前/1D當/4H前/4H當 的狀態排序）
+    df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
     # 圖表區專用的過濾結果（只影響下方圖表）
     if search_term:
@@ -349,11 +358,11 @@ if results:
         else:
             pct_styles.append('')
 
-    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_ha_pct_series", "_ha_curr_pct", "_abs_dev"])
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_abs_dev", "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20"])
 
     def color_logic(v):
-        if v == '✅': return 'color: #22c55e; font-weight: bold;'
-        elif v == '❌': return 'color: #ef4444; font-weight: bold;'
+        if v in ['🟢', '✅']: return 'color: #22c55e; font-weight: bold;'
+        elif v in ['🔴', '❌']: return 'color: #ef4444; font-weight: bold;'
         return 'color: #64748b;'
 
     def color_price(col):
@@ -363,12 +372,16 @@ if results:
         return pd.Series(pct_styles, index=col.index)
 
     col_cfg = {
-        "幣種":       st.column_config.TextColumn("幣種",       width=75),
-        "現價":       st.column_config.TextColumn("現價",       width=95),
-        "差%":        st.column_config.TextColumn("差%",        width=85),
-        "距離中軌%":   st.column_config.TextColumn("距離中軌%",   width=95),
-        "BB日中軌":   st.column_config.TextColumn("BB日中軌",   width=95),
-        "BB中軌":     st.column_config.TextColumn("BB中軌",     width=65),
+        "幣種":    st.column_config.TextColumn("幣種",    width=75),
+        "現價":    st.column_config.TextColumn("現價",    width=95),
+        "差%":     st.column_config.TextColumn("差%",     width=85),
+        "BB日中軌": st.column_config.TextColumn("BB日中軌", width=95),
+        "BB中軌":  st.column_config.TextColumn("BB中軌",  width=65),
+        "1D前":    st.column_config.TextColumn("1D前",    width=55),
+        "1D當":    st.column_config.TextColumn("1D當",    width=55),
+        "4H前":    st.column_config.TextColumn("4H前",    width=55),
+        "4H當":    st.column_config.TextColumn("4H當",    width=55),
+        "距離中軌%": st.column_config.TextColumn("距離中軌%", width=90),
     }
 
     styled = (
