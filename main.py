@@ -260,7 +260,11 @@ for i, symbol in enumerate(symbols):
             bb_pct_str = "—"
         
         # 計算最近 20 根 HA 收盤價 相對 BB中軌 的 % 偏差序列 (供圖表使用)
-        ha_closes_last20 = [k['close'] for k in ha1d[-20:]]
+        ha_last20 = ha1d[-20:]
+        ha_closes_last20 = [k['close'] for k in ha_last20]
+        ha_opens_last20 = [k['open'] for k in ha_last20]
+        ha_times_last20 = [k['time'] for k in ha_last20]
+
         if bb_basis_1d and bb_basis_1d > 0:
             ha_pct_series = [(c - bb_basis_1d) / bb_basis_1d * 100 for c in ha_closes_last20]
             ha_curr_pct = ha_pct_series[-1] if ha_pct_series else 0.0
@@ -279,6 +283,9 @@ for i, symbol in enumerate(symbols):
             "_bb_pct": bb_pct,
             "_ha_pct_series": ha_pct_series,
             "_ha_curr_pct": ha_curr_pct,
+            "_ha_opens_last20": ha_opens_last20,
+            "_ha_closes_last20": ha_closes_last20,
+            "_ha_times_last20": ha_times_last20,
         })
 
 # 清除進度條並顯示表格
@@ -370,35 +377,60 @@ if results:
                 with st.container(border=True):
                     ha_series = r.get("_ha_pct_series", [0.0])
                     curr_pct = r.get("_ha_curr_pct", 0.0)
+                    ha_opens = r.get("_ha_opens_last20", [])
+                    ha_closes = r.get("_ha_closes_last20", [])
+                    ha_times = r.get("_ha_times_last20", [])
 
                     # 標題
                     st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}")
 
                     # 建立 20期走勢圖
-                    fig, ax = plt.subplots(figsize=(5.5, 2.8), facecolor='#1e293b')
+                    fig, ax = plt.subplots(figsize=(5.8, 2.9), facecolor='#1e293b')
                     ax.set_facecolor('#1e293b')
 
-                    x = list(range(len(ha_series)))
+                    n = len(ha_series)
+                    x = list(range(n))
                     y = ha_series
-                    line_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
 
-                    # 主要走勢線 (使用 step 呈現階梯感，或改用 plot 也行)
-                    ax.step(x, y, where='post', color=line_color, linewidth=2.2, label='HA % 偏離中軌')
-                    
-                    # 目前最新點特別標註
-                    ax.plot(x[-1], y[-1], 'o', color='white', markersize=7, zorder=7)
-                    ax.plot(x[-1], y[-1], 'o', color=line_color, markersize=4, zorder=8)
+                    # === 產生日期標籤 (台灣時間) ===
+                    if ha_times:
+                        last_ts = ha_times[-1] / 1000.0
+                        last_date = datetime.fromtimestamp(last_ts, tz=TW_TZ).date()
+                        date_labels = [(last_date - timedelta(days=n-1-i)).strftime('%m/%d') for i in range(n)]
+                    else:
+                        date_labels = [str(i) for i in range(n)]
 
-                    # 中軌基準線 (0%)
-                    ax.axhline(0, color='#fbbf24', linestyle='--', linewidth=1.6, label='BB中軌 (0%)')
+                    # === 依每根 K 的方向著色階梯線 ===
+                    # 黃色 (#fbbf24) = 當日 HA 收盤 > 開盤 (多頭)
+                    # 紫色 (#B39DDB) = 當日 HA 收盤 < 開盤 (空頭)
+                    for i in range(n-1):
+                        if i < len(ha_opens) and i < len(ha_closes):
+                            is_bull = ha_closes[i] > ha_opens[i]
+                            seg_color = '#fbbf24' if is_bull else '#B39DDB'
+                        else:
+                            seg_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
 
-                    # 區域填色
-                    ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.15, color='#22c55e', step='post', zorder=1)
-                    ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.15, color='#ef4444', step='post', zorder=1)
+                        # 畫這一段 step
+                        ax.step([x[i], x[i+1]], [y[i], y[i+1]], where='post', color=seg_color, linewidth=2.3)
+
+                    # 目前最新點特別標註 (白色外框)
+                    if n > 0:
+                        ax.plot(x[-1], y[-1], 'o', color='white', markersize=8, zorder=7)
+                        final_color = '#fbbf24' if (ha_closes and ha_opens and ha_closes[-1] > ha_opens[-1]) else '#B39DDB'
+                        ax.plot(x[-1], y[-1], 'o', color=final_color, markersize=4.5, zorder=8)
+
+                    # 中軌基準線 (改為淡灰色)
+                    ax.axhline(0, color='#64748b', linestyle='--', linewidth=1.5, label='BB中軌 (0%)')
+
+                    # 區域填色 (保持原本邏輯)
+                    ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.12, color='#22c55e', step='post', zorder=1)
+                    ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.12, color='#ef4444', step='post', zorder=1)
 
                     # 設定
-                    ax.set_xlim(-0.5, len(ha_series) - 0.5)
-                    ax.set_xlabel('最近 20 根日線 (由舊到新)', fontsize=8, color='#94a3b8')
+                    ax.set_xlim(-0.5, n - 0.5)
+                    ax.set_xticks(x[::2])  # 每隔一天顯示日期，避免太密
+                    ax.set_xticklabels(date_labels[::2], rotation=45, ha='right', fontsize=7, color='#94a3b8')
+                    ax.set_xlabel('日期 (台灣時間)', fontsize=8, color='#94a3b8')
                     ax.set_ylabel('% 相對 BB中軌', fontsize=9, color='#94a3b8')
                     ax.set_title(f"中軌價格 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
 
@@ -408,17 +440,25 @@ if results:
                         spine.set_color('#475569')
                         spine.set_alpha(0.6)
 
-                    ax.legend(loc='upper right', fontsize=7, framealpha=0.85, facecolor='#1e293b', edgecolor='#475569')
+                    # 圖例
+                    from matplotlib.lines import Line2D
+                    legend_elements = [
+                        Line2D([0], [0], color='#fbbf24', linewidth=2.3, label='HA 多頭 (收>開)'),
+                        Line2D([0], [0], color='#B39DDB', linewidth=2.3, label='HA 空頭 (收<開)'),
+                        Line2D([0], [0], color='#64748b', linestyle='--', linewidth=1.5, label='BB中軌 (0%)')
+                    ]
+                    ax.legend(handles=legend_elements, loc='upper right', fontsize=7, framealpha=0.85, 
+                              facecolor='#1e293b', edgecolor='#475569')
 
                     # 在最新點旁標註目前數值
-                    offset_y = 6 if curr_pct >= 0 else -12
+                    offset_y = 7 if curr_pct >= 0 else -13
                     ax.annotate(f'{curr_pct:+.2f}%', 
                                 xy=(x[-1], y[-1]), 
                                 xytext=(0, offset_y),
                                 textcoords='offset points', 
                                 ha='center', 
                                 fontsize=8, 
-                                color=line_color, 
+                                color=final_color, 
                                 fontweight='bold')
 
                     st.pyplot(fig, clear_figure=True, use_container_width=True)
