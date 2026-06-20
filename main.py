@@ -436,24 +436,19 @@ if results:
             selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
             if selected:
                 copy_text = "、".join(selected)
-                st.session_state["copy_text"] = copy_text
+                st.session_state.search_term = copy_text      # 直接寫入搜尋框
                 st.session_state["just_copied"] = True
                 st.success(f"已複製 {len(selected)} 個")
+                st.rerun()   # 讓搜尋框和圖表立刻更新
             else:
                 st.warning("請先勾選")
 
-        # 套用至搜尋框（直接更新 session_state + rerun，讓輸入框立刻顯示）
-        if st.session_state.get("copy_text"):
-            if st.button("套用至搜尋框", use_container_width=True):
-                st.session_state.search_term = st.session_state["copy_text"]
-                st.rerun()
-
         # JavaScript 直接複製 + 視覺回饋（類似你運動版）
-        if st.session_state.get("just_copied") and st.session_state.get("copy_text"):
+        if st.session_state.get("just_copied") and st.session_state.get("search_term"):
             js_code = f"""
             <script>
             (function() {{
-                const text = `{st.session_state['copy_text']}`;
+                const text = `{st.session_state['search_term']}`;
                 function flashSuccess() {{
                     const buttons = window.parent.document.querySelectorAll('button');
                     for (let b of buttons) {{
