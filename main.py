@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import streamlit.components.v1 as components
 
 # 台灣時區 UTC+8
 TW_TZ = timezone(timedelta(hours=8))
@@ -103,19 +104,25 @@ st.markdown("""
         display: none !important;
     }
 
-    /* 浮動操作面板：選幣 + 顯示圖表，捲動表格時仍固定在畫面右側 */
+    /* 浮動操作抽屜：選幣 + 顯示圖表 + 清除勾選，預設收在畫面右側外，
+       點擊 FAB 後滑出，無時無刻都浮動在畫面上 */
     .st-key-floating_action_bar {
         position: fixed;
         top: 175px;
-        right: 24px;
+        right: 0px;
         z-index: 99999;
-        width: 130px;
-        padding: 8px;
-        background: rgba(15, 23, 42, 0.92);
+        width: 150px;
+        padding: 14px 10px 10px 10px;
+        background: rgba(15, 23, 42, 0.96);
         border: 1px solid rgba(19, 242, 26, 0.45);
-        border-radius: 10px;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        border-radius: 10px 0 0 10px;
+        box-shadow: -4px 4px 20px rgba(0, 0, 0, 0.5);
         backdrop-filter: blur(6px);
+        transform: translateX(150px);
+        transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .st-key-floating_action_bar.drawer-open {
+        transform: translateX(0);
     }
     .st-key-floating_action_bar [data-testid="stButton"] {
         margin-bottom: 5px;
@@ -128,8 +135,86 @@ st.markdown("""
         padding: 3px 6px !important;
         line-height: 1.4 !important;
     }
+    /* 浮動 FAB 按鈕（永遠顯示，用於開關抽屜） */
+    #panel-fab {
+        position: fixed;
+        top: 175px;
+        right: 18px;
+        z-index: 999999;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(19, 242, 26, 0.6);
+        box-shadow: 0 0 10px rgba(19, 242, 26, 0.25), 3px 3px 0px rgba(0,0,0,0.4);
+        color: #13f21a;
+        font-size: 19px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    #panel-fab:hover {
+        background: rgba(19, 242, 26, 0.15);
+        transform: translateY(-1px);
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# ==================== 2.1 浮動 FAB：開關「選幣／顯示圖表／清除勾選」抽屜 ====================
+def inject_panel_fab():
+    components.html(
+        """
+        <script>
+        (function() {
+            function inject() {
+                try {
+                    var p = window.parent.document;
+
+                    // 清除舊版 FAB，避免重複 rerun 後疊加
+                    var old = p.getElementById('panel-fab');
+                    if (old) old.remove();
+
+                    var fab = p.createElement('div');
+                    fab.id = 'panel-fab';
+                    fab.innerHTML = '🎛️';
+                    fab.title = '選幣 / 顯示圖表 / 清除勾選';
+
+                    // 還原上次的開關狀態（避免按鈕觸發 rerun 後抽屜被重置成關閉）
+                    var drawerNow = p.querySelector('.st-key-floating_action_bar');
+                    if (drawerNow && window.parent.sessionStorage.getItem('panelDrawerOpen') === '1') {
+                        drawerNow.classList.add('drawer-open');
+                    }
+
+                    fab.addEventListener('click', function() {
+                        var drawer = p.querySelector('.st-key-floating_action_bar');
+                        if (drawer) {
+                            drawer.classList.toggle('drawer-open');
+                            var isOpen = drawer.classList.contains('drawer-open');
+                            window.parent.sessionStorage.setItem('panelDrawerOpen', isOpen ? '1' : '0');
+                        }
+                    });
+
+                    p.body.appendChild(fab);
+                } catch (e) {
+                    console.error('[panel-fab] inject failed:', e);
+                }
+            }
+
+            if (window.parent.document.body) {
+                inject();
+            } else {
+                window.parent.addEventListener('load', inject);
+            }
+            setTimeout(inject, 300);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 # ==================== 3. 核心抓取邏輯 (加上緩存保護) ====================
 
@@ -446,9 +531,13 @@ if results:
     )
 
     with st.container(key="floating_action_bar"):
+        st.markdown("<div style='color:#13f21a;font-size:11px;font-weight:bold;margin-bottom:6px;'>🎛️ 操作面板</div>", unsafe_allow_html=True)
         pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
         show_all_clicked = st.button("📊 顯示圖表", use_container_width=True)
         clear_clicked = st.button("🗑️ 清除勾選", use_container_width=True)
+
+    # 注入永遠浮動的 FAB 按鈕，點擊即可滑開/收起上方抽屜
+    inject_panel_fab()
 
     # 「🎯 選幣」：把目前勾選的幣種直接套用，圖表立刻只顯示這些幣種
     if pick_clicked:
