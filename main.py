@@ -315,14 +315,17 @@ for i, symbol in enumerate(symbols):
 placeholder.empty()
 
 if results:
-    # 如果有輸入搜尋字串，就過濾幣種
-    if search_term:
-        search_upper = search_term.upper()
-        results = [r for r in results if search_upper in r["幣種"].upper()]
-
+    # 表格永遠顯示完整列表（不受搜尋影響）
     df = pd.DataFrame(results)
     # 預設排序：距離中軌最近的排在最上面
     df = df.sort_values(by="_abs_dev", ascending=True)
+
+    # 圖表區專用的過濾結果（只影響下方圖表）
+    if search_term:
+        search_upper = search_term.upper()
+        chart_results = [r for r in results if search_upper in r["幣種"].upper()]
+    else:
+        chart_results = results
 
     # ── 現價顏色：現價 > 日線BB中軌 → 綠；< → 紅 ──
     price_styles = []
@@ -392,11 +395,11 @@ if results:
     show_charts = st.checkbox("顯示各幣種 20期走勢圖 (2欄網格)", value=default_show)
 
     if show_charts:
-        if len(results) > 20:
-            st.info(f"⚠️ 幣種數量較多（{len(results)}），僅顯示前 20 個的圖表以維持效能。建議切換「考試幣」查看完整視覺化。")
-            plot_results = results[:20]
+        if len(chart_results) > 20:
+            st.info(f"⚠️ 幣種數量較多（{len(chart_results)}），僅顯示前 20 個的圖表以維持效能。建議切換「考試幣」查看完整視覺化。")
+            plot_results = chart_results[:20]
         else:
-            plot_results = results
+            plot_results = chart_results
 
         n_cols = 2 if len(plot_results) > 4 else 3
         chart_cols = st.columns(n_cols)
