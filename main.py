@@ -102,6 +102,27 @@ st.markdown("""
     .ag-sort-indicator {
         display: none !important;
     }
+
+    /* 浮動操作面板：選幣 + 顯示圖表，捲動表格時仍固定在畫面右側 */
+    .st-key-floating_action_bar {
+        position: fixed;
+        top: 110px;
+        right: 24px;
+        z-index: 99999;
+        width: 168px;
+        padding: 10px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(19, 242, 26, 0.45);
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(6px);
+    }
+    .st-key-floating_action_bar [data-testid="stButton"] {
+        margin-bottom: 8px;
+    }
+    .st-key-floating_action_bar [data-testid="stButton"]:last-child {
+        margin-bottom: 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -228,34 +249,9 @@ with col_btn:
         st.cache_data.clear()
         st.rerun()
 
-# --- 搜尋框（使用「動態 key」機制，避免 Streamlit 不能修改已建立 widget 的 session_state 限制） ---
-if "search_version" not in st.session_state:
-    st.session_state.search_version = 0
-if "pending_search_value" not in st.session_state:
-    st.session_state.pending_search_value = ""
+# --- 圖表篩選狀態（不再使用搜尋框，改由「🎯 選幣」與「📊 顯示圖表」按鈕直接控制） ---
 if "applied_search" not in st.session_state:
     st.session_state.applied_search = ""
-
-current_search_key = f"search_input_{st.session_state.search_version}"
-
-col_search, col_search_btn = st.columns([0.86, 0.14])
-
-with col_search:
-    search_term = st.text_input(
-        "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
-        value=st.session_state.pending_search_value,
-        placeholder="例如：BTC、ETH、DOGE",
-        label_visibility="collapsed",
-        key=current_search_key   # key 每次「複製」後會換新的，所以可以安全帶入新的預設值
-    )
-
-with col_search_btn:
-    search_clicked = st.button("📊 顯示圖表", use_container_width=True)
-
-# 按下「顯示圖表」按鈕後，才真正套用搜尋字串去篩選圖表（避免每打一個字就重畫圖表）
-if search_clicked:
-    st.session_state.applied_search = search_term
-    st.session_state.pending_search_value = search_term
 
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
@@ -431,82 +427,35 @@ if results:
         .apply(color_pct, subset=["差%"], axis=0)
     )
 
-    # 左右分欄：左側表格 + 右側浮動複製按鈕
-    col_table, col_btn = st.columns([0.86, 0.14])
+    # 表格全寬顯示 + 浮動操作面板（捲動表格時仍固定在畫面右側）
+    edited_df = st.data_editor(
+        styled,
+        use_container_width=True,
+        column_config=col_cfg,
+        height=(len(display_df) + 1) * 34 + 5,
+        hide_index=True,
+        key="coin_selector"
+    )
 
-    with col_table:
-        edited_df = st.data_editor(
-            styled,
-            use_container_width=True,
-            column_config=col_cfg,
-            height=(len(display_df) + 1) * 34 + 5,
-            hide_index=True,
-            key="coin_selector"
-        )
+    with st.container(key="floating_action_bar"):
+        pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
+        show_all_clicked = st.button("📊 顯示圖表", use_container_width=True)
 
-    with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)
+    # 「🎯 選幣」：把目前勾選的幣種直接套用，圖表立刻只顯示這些幣種
+    if pick_clicked:
+        selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
+        if selected:
+            st.session_state.applied_search = "、".join(selected)
+            st.toast(f"🎯 已選擇 {len(selected)} 個幣種", icon="✅")
+            st.rerun()
+        else:
+            st.toast("請先勾選幣種", icon="⚠️")
 
-        if st.button("📋 複製", type="primary", use_container_width=True):
-            selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
-            if selected:
-                copy_text = "、".join(selected)
-                st.session_state.pending_search_value = copy_text  # 下次重繪時，搜尋框要顯示的文字
-                st.session_state.search_version += 1                # 換一個全新的 key，避免改到已建立 widget 的狀態
-                st.session_state.applied_search = copy_text          # 同步套用，圖表立刻顯示這些幣種
-                st.session_state["just_copied"] = True
-                st.success(f"已複製 {len(selected)} 個")
-                st.rerun()   # 讓搜尋框和圖表立刻更新
-            else:
-                st.warning("請先勾選")
-
-        # JavaScript 直接複製 + 視覺回饋（類似你運動版）
-        if st.session_state.get("just_copied") and st.session_state.get("applied_search"):
-            js_code = f"""
-            <script>
-            (function() {{
-                const text = `{st.session_state['applied_search']}`;
-                function flashSuccess() {{
-                    const buttons = window.parent.document.querySelectorAll('button');
-                    for (let b of buttons) {{
-                        if (b.innerText.includes('複製')) {{
-                            const origText = b.innerHTML;
-                            const origStyle = b.style.cssText;
-                            b.innerHTML = '✅ 已複製';
-                            b.style.background = '#22c55e';
-                            b.style.color = 'white';
-                            setTimeout(() => {{
-                                b.innerHTML = origText;
-                                b.style.cssText = origStyle;
-                            }}, 1600);
-                            break;
-                        }}
-                    }}
-                }}
-                if (navigator.clipboard && navigator.clipboard.writeText) {{
-                    navigator.clipboard.writeText(text).then(flashSuccess).catch(() => {{
-                        fallbackCopy(text, flashSuccess);
-                    }});
-                }} else {{
-                    fallbackCopy(text, flashSuccess);
-                }}
-                function fallbackCopy(txt, cb) {{
-                    const ta = document.createElement('textarea');
-                    ta.value = txt;
-                    ta.style.position = 'fixed';
-                    ta.style.top = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.focus();
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    if (cb) cb();
-                }}
-            }})();
-            </script>
-            """
-            st.components.v1.html(js_code, height=0)
-            st.session_state["just_copied"] = False
+    # 「📊 顯示圖表」：恢復原廠設定，顯示全部幣種的圖表
+    if show_all_clicked:
+        st.session_state.applied_search = ""
+        st.toast("📊 已恢復顯示全部幣種圖表", icon="🔄")
+        st.rerun()
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
