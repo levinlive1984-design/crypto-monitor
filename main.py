@@ -421,7 +421,9 @@ for i, symbol in enumerate(symbols):
         # 計算現價 vs BB中軌的百分比 (維持原有「差%」)
         if bb_basis_1d and bb_basis_1d > 0:
             bb_pct = ((current_price - bb_basis_1d) / bb_basis_1d) * 100
-            bb_pct_str = f"{bb_pct:+.2f}%"
+            # st.data_editor 不支援 Styler 顏色樣式，改用 🟢/🔴 圓點前綴來呈現正負色彩
+            pct_dot = "🟢" if bb_pct > 0 else ("🔴" if bb_pct < 0 else "⚫")
+            bb_pct_str = f"{pct_dot} {bb_pct:+.2f}%"
             abs_dev = abs(bb_pct)
             abs_dev_str = f"{abs_dev:.2f}%"
         else:
