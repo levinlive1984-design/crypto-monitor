@@ -228,20 +228,25 @@ with col_btn:
         st.cache_data.clear()
         st.rerun()
 
-# --- 搜尋框（使用 session_state 控制，支援「套用至搜尋框」按鈕） ---
-if "search_input" not in st.session_state:
-    st.session_state["search_input"] = ""
+# --- 搜尋框（使用「動態 key」機制，避免 Streamlit 不能修改已建立 widget 的 session_state 限制） ---
+if "search_version" not in st.session_state:
+    st.session_state.search_version = 0
+if "pending_search_value" not in st.session_state:
+    st.session_state.pending_search_value = ""
 if "applied_search" not in st.session_state:
     st.session_state.applied_search = ""
+
+current_search_key = f"search_input_{st.session_state.search_version}"
 
 col_search, col_search_btn = st.columns([0.86, 0.14])
 
 with col_search:
     search_term = st.text_input(
         "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
+        value=st.session_state.pending_search_value,
         placeholder="例如：BTC、ETH、DOGE",
         label_visibility="collapsed",
-        key="search_input"   # 直接用這個 key 當唯一狀態來源，不再額外傳 value=
+        key=current_search_key   # key 每次「複製」後會換新的，所以可以安全帶入新的預設值
     )
 
 with col_search_btn:
@@ -250,6 +255,7 @@ with col_search_btn:
 # 按下「顯示圖表」按鈕後，才真正套用搜尋字串去篩選圖表（避免每打一個字就重畫圖表）
 if search_clicked:
     st.session_state.applied_search = search_term
+    st.session_state.pending_search_value = search_term
 
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
@@ -445,8 +451,9 @@ if results:
             selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
             if selected:
                 copy_text = "、".join(selected)
-                st.session_state["search_input"] = copy_text  # 直接寫入搜尋框（這是輸入框真正的 key）
-                st.session_state.applied_search = copy_text   # 同步套用，圖表立刻顯示這些幣種
+                st.session_state.pending_search_value = copy_text  # 下次重繪時，搜尋框要顯示的文字
+                st.session_state.search_version += 1                # 換一個全新的 key，避免改到已建立 widget 的狀態
+                st.session_state.applied_search = copy_text          # 同步套用，圖表立刻顯示這些幣種
                 st.session_state["just_copied"] = True
                 st.success(f"已複製 {len(selected)} 個")
                 st.rerun()   # 讓搜尋框和圖表立刻更新
