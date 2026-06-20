@@ -259,12 +259,13 @@ for i, symbol in enumerate(symbols):
             bb_pct = 0
             bb_pct_str = "—"
         
-        # 計算 HA收盤價 相對 BB中軌 的 % 偏差 (供階梯圖使用)
+        # 計算最近 20 根 HA 收盤價 相對 BB中軌 的 % 偏差序列 (供圖表使用)
+        ha_closes_last20 = [k['close'] for k in ha1d[-20:]]
         if bb_basis_1d and bb_basis_1d > 0:
-            ha_prev_pct = (ha_close_prev - bb_basis_1d) / bb_basis_1d * 100
-            ha_curr_pct = (ha_close_curr - bb_basis_1d) / bb_basis_1d * 100
+            ha_pct_series = [(c - bb_basis_1d) / bb_basis_1d * 100 for c in ha_closes_last20]
+            ha_curr_pct = ha_pct_series[-1] if ha_pct_series else 0.0
         else:
-            ha_prev_pct = 0.0
+            ha_pct_series = [0.0] * len(ha_closes_last20)
             ha_curr_pct = 0.0
         
         results.append({
@@ -273,14 +274,10 @@ for i, symbol in enumerate(symbols):
             "差%": bb_pct_str,
             "BB日中軌": format_price(bb_basis_1d),
             "BB中軌": bb_signal,
-            "1D前HA": format_price(ha_close_prev),
-            "1D當HA": format_price(ha_close_curr),
             "_price": current_price,
             "_bb1d": bb_basis_1d if bb_basis_1d else 0,
             "_bb_pct": bb_pct,
-            "_ha_prev": ha_close_prev,
-            "_ha_curr": ha_close_curr,
-            "_ha_prev_pct": ha_prev_pct,
+            "_ha_pct_series": ha_pct_series,
             "_ha_curr_pct": ha_curr_pct,
         })
 
@@ -289,18 +286,14 @@ placeholder.empty()
 
 if results:
     df = pd.DataFrame(results)
-    # 依「1D當HA %偏離中軌」由高到低排序，讓最強勢的幣種排在前面
+    # 依「目前 HA %偏離中軌」由高到低排序，讓最強勢的幣種排在前面
     df = df.sort_values(by="_ha_curr_pct", ascending=False)
 
     # ── 現價顏色：現價 > 日線BB中軌 → 綠；< → 紅 ──
     price_styles = []
     pct_styles = []
-    ha_prev_styles = []
-    ha_curr_styles = []
     for _, row in df.iterrows():
         p, b, pct = row["_price"], row["_bb1d"], row["_bb_pct"]
-        hp = row["_ha_prev"]
-        hc = row["_ha_curr"]
         
         # 現價樣式
         if b > 0 and p > b:
@@ -317,24 +310,8 @@ if results:
             pct_styles.append('color: #ef4444; font-weight: bold;')
         else:
             pct_styles.append('')
-        
-        # 1D前HA 顏色 (相對於BB中軌)
-        if b > 0 and hp > b:
-            ha_prev_styles.append('color: #22c55e; font-weight: bold;')
-        elif b > 0 and hp < b:
-            ha_prev_styles.append('color: #ef4444; font-weight: bold;')
-        else:
-            ha_prev_styles.append('')
-        
-        # 1D當HA 顏色 (相對於BB中軌)
-        if b > 0 and hc > b:
-            ha_curr_styles.append('color: #22c55e; font-weight: bold;')
-        elif b > 0 and hc < b:
-            ha_curr_styles.append('color: #ef4444; font-weight: bold;')
-        else:
-            ha_curr_styles.append('')
 
-    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_ha_prev", "_ha_curr", "_ha_prev_pct", "_ha_curr_pct"])
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_ha_pct_series", "_ha_curr_pct"])
 
     def color_logic(v):
         if v == '✅': return 'color: #22c55e; font-weight: bold;'
@@ -346,21 +323,13 @@ if results:
     
     def color_pct(col):
         return pd.Series(pct_styles, index=col.index)
-    
-    def color_ha_prev(col):
-        return pd.Series(ha_prev_styles, index=col.index)
-    
-    def color_ha_curr(col):
-        return pd.Series(ha_curr_styles, index=col.index)
 
     col_cfg = {
-        "幣種":    st.column_config.TextColumn("幣種",    width=75),
-        "現價":    st.column_config.TextColumn("現價",    width=95),
-        "差%":     st.column_config.TextColumn("差%",     width=85),
-        "BB日中軌": st.column_config.TextColumn("BB日中軌", width=95),
-        "BB中軌":  st.column_config.TextColumn("BB中軌",  width=65),
-        "1D前HA":  st.column_config.TextColumn("1D前HA",  width=90),
-        "1D當HA":  st.column_config.TextColumn("1D當HA",  width=90),
+        "幣種":    st.column_config.TextColumn("幣種",    width=80),
+        "現價":    st.column_config.TextColumn("現價",    width=100),
+        "差%":     st.column_config.TextColumn("差%",     width=90),
+        "BB日中軌": st.column_config.TextColumn("BB日中軌", width=100),
+        "BB中軌":  st.column_config.TextColumn("BB中軌",  width=70),
     }
 
     styled = (
@@ -368,8 +337,6 @@ if results:
         .map(color_logic, subset=["BB中軌"])
         .apply(color_price, subset=["現價"], axis=0)
         .apply(color_pct, subset=["差%"], axis=0)
-        .apply(color_ha_prev, subset=["1D前HA"], axis=0)
-        .apply(color_ha_curr, subset=["1D當HA"], axis=0)
     )
 
     st.dataframe(
@@ -380,13 +347,13 @@ if results:
         hide_index=True
     )
 
-    # ==================== 新增：各幣種 HA收盤價 相對 BB中軌 % 階梯圖 ====================
+    # ==================== 新增：各幣種 最近20根 HA收盤價 相對 BB中軌 % 偏差圖 ====================
     st.markdown("---")
-    st.markdown("### 📈 HA收盤價 vs BB中軌 % 偏差階梯圖")
+    st.markdown("### 📈 最近 20 根 HA 收盤價 vs BB中軌 % 偏差走勢圖")
 
     # 只有當幣種數量合理時才預設開啟圖表，避免「全部」模式卡頓
     default_show = len(results) <= 8
-    show_charts = st.checkbox("顯示各幣種階梯圖表 (2欄網格)", value=default_show)
+    show_charts = st.checkbox("顯示各幣種 20期走勢圖 (2欄網格)", value=default_show)
 
     if show_charts:
         if len(results) > 20:
@@ -401,41 +368,41 @@ if results:
         for idx, r in enumerate(plot_results):
             with chart_cols[idx % n_cols]:
                 with st.container(border=True):
-                    prev_pct = r.get("_ha_prev_pct", 0.0)
+                    ha_series = r.get("_ha_pct_series", [0.0])
                     curr_pct = r.get("_ha_curr_pct", 0.0)
-                    bb_val = r.get("_bb1d", 0)
 
                     # 標題
-                    st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　偏離 {r['差%']}")
+                    st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}")
 
-                    # 建立階梯圖
-                    fig, ax = plt.subplots(figsize=(5.2, 2.7), facecolor='#1e293b')
+                    # 建立 20期走勢圖
+                    fig, ax = plt.subplots(figsize=(5.5, 2.8), facecolor='#1e293b')
                     ax.set_facecolor('#1e293b')
 
-                    x = np.array([0, 1])
-                    y = np.array([prev_pct, curr_pct])
+                    x = list(range(len(ha_series)))
+                    y = ha_series
                     line_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
 
-                    # 階梯線 (step post)
-                    ax.step(x, y, where='post', color=line_color, linewidth=2.8, label='HA % 偏離中軌')
-                    # 端點圓點
-                    ax.plot(x, y, 'o', color=line_color, markersize=9, zorder=6, markeredgecolor='white', markeredgewidth=0.8)
+                    # 主要走勢線 (使用 step 呈現階梯感，或改用 plot 也行)
+                    ax.step(x, y, where='post', color=line_color, linewidth=2.2, label='HA % 偏離中軌')
+                    
+                    # 目前最新點特別標註
+                    ax.plot(x[-1], y[-1], 'o', color='white', markersize=7, zorder=7)
+                    ax.plot(x[-1], y[-1], 'o', color=line_color, markersize=4, zorder=8)
 
                     # 中軌基準線 (0%)
-                    ax.axhline(0, color='#fbbf24', linestyle='--', linewidth=1.8, label='BB中軌 (0%)')
+                    ax.axhline(0, color='#fbbf24', linestyle='--', linewidth=1.6, label='BB中軌 (0%)')
 
                     # 區域填色
-                    ax.fill_between(x, y, 0, where=(y >= 0), alpha=0.18, color='#22c55e', step='post', zorder=1)
-                    ax.fill_between(x, y, 0, where=(y < 0), alpha=0.18, color='#ef4444', step='post', zorder=1)
+                    ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.15, color='#22c55e', step='post', zorder=1)
+                    ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.15, color='#ef4444', step='post', zorder=1)
 
                     # 設定
-                    ax.set_xlim(-0.25, 1.25)
-                    ax.set_xticks([0, 1])
-                    ax.set_xticklabels(['1D前 HA %', '1D當 HA %'], fontsize=9, color='#94a3b8')
+                    ax.set_xlim(-0.5, len(ha_series) - 0.5)
+                    ax.set_xlabel('最近 20 根日線 (由舊到新)', fontsize=8, color='#94a3b8')
                     ax.set_ylabel('% 相對 BB中軌', fontsize=9, color='#94a3b8')
-                    ax.set_title(f"中軌 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=3)
+                    ax.set_title(f"中軌價格 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
 
-                    ax.tick_params(colors='#94a3b8', labelsize=8)
+                    ax.tick_params(colors='#94a3b8', labelsize=7)
                     ax.grid(True, linestyle=':', alpha=0.35, color='#475569')
                     for spine in ax.spines.values():
                         spine.set_color('#475569')
@@ -443,15 +410,16 @@ if results:
 
                     ax.legend(loc='upper right', fontsize=7, framealpha=0.85, facecolor='#1e293b', edgecolor='#475569')
 
-                    # 在點旁標註數值
-                    offset = 7 if prev_pct >= 0 else -14
-                    ax.annotate(f'{prev_pct:+.2f}%', xy=(0, prev_pct), xytext=(0, offset),
-                                textcoords='offset points', ha='center', va='bottom' if prev_pct >= 0 else 'top',
-                                fontsize=8, color=line_color, fontweight='bold')
-                    offset = 7 if curr_pct >= 0 else -14
-                    ax.annotate(f'{curr_pct:+.2f}%', xy=(1, curr_pct), xytext=(0, offset),
-                                textcoords='offset points', ha='center', va='bottom' if curr_pct >= 0 else 'top',
-                                fontsize=8, color=line_color, fontweight='bold')
+                    # 在最新點旁標註目前數值
+                    offset_y = 6 if curr_pct >= 0 else -12
+                    ax.annotate(f'{curr_pct:+.2f}%', 
+                                xy=(x[-1], y[-1]), 
+                                xytext=(0, offset_y),
+                                textcoords='offset points', 
+                                ha='center', 
+                                fontsize=8, 
+                                color=line_color, 
+                                fontweight='bold')
 
                     st.pyplot(fig, clear_figure=True, use_container_width=True)
 
