@@ -255,9 +255,13 @@ for i, symbol in enumerate(symbols):
         if bb_basis_1d and bb_basis_1d > 0:
             bb_pct = ((current_price - bb_basis_1d) / bb_basis_1d) * 100
             bb_pct_str = f"{bb_pct:+.2f}%"
+            abs_dev = abs(bb_pct)
+            abs_dev_str = f"{abs_dev:.2f}%"
         else:
             bb_pct = 0
             bb_pct_str = "—"
+            abs_dev = 999.0
+            abs_dev_str = "—"
         
         # 計算最近 20 根 HA 收盤價（每根用「當天」的 BB中軌 計算 % 偏差）
         ha_last20 = ha1d[-20:]
@@ -286,11 +290,13 @@ for i, symbol in enumerate(symbols):
             "幣種": symbol,
             "現價": format_price(current_price),
             "差%": bb_pct_str,
+            "距離中軌%": abs_dev_str,
             "BB日中軌": format_price(bb_basis_1d),
             "BB中軌": bb_signal,
             "_price": current_price,
             "_bb1d": bb_basis_1d if bb_basis_1d else 0,
             "_bb_pct": bb_pct,
+            "_abs_dev": abs_dev,
             "_ha_pct_series": ha_pct_series,
             "_ha_curr_pct": ha_curr_pct,
             "_ha_opens_last20": ha_opens_last20,
@@ -303,8 +309,8 @@ placeholder.empty()
 
 if results:
     df = pd.DataFrame(results)
-    # 依「目前 HA %偏離中軌」由高到低排序，讓最強勢的幣種排在前面
-    df = df.sort_values(by="_ha_curr_pct", ascending=False)
+    # 預設排序：距離中軌最近的排在最上面
+    df = df.sort_values(by="_abs_dev", ascending=True)
 
     # ── 現價顏色：現價 > 日線BB中軌 → 綠；< → 紅 ──
     price_styles = []
@@ -328,7 +334,7 @@ if results:
         else:
             pct_styles.append('')
 
-    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_ha_pct_series", "_ha_curr_pct"])
+    display_df = df.drop(columns=["_price", "_bb1d", "_bb_pct", "_ha_pct_series", "_ha_curr_pct", "_abs_dev"])
 
     def color_logic(v):
         if v == '✅': return 'color: #22c55e; font-weight: bold;'
@@ -342,11 +348,12 @@ if results:
         return pd.Series(pct_styles, index=col.index)
 
     col_cfg = {
-        "幣種":    st.column_config.TextColumn("幣種",    width=80),
-        "現價":    st.column_config.TextColumn("現價",    width=100),
-        "差%":     st.column_config.TextColumn("差%",     width=90),
-        "BB日中軌": st.column_config.TextColumn("BB日中軌", width=100),
-        "BB中軌":  st.column_config.TextColumn("BB中軌",  width=70),
+        "幣種":       st.column_config.TextColumn("幣種",       width=75),
+        "現價":       st.column_config.TextColumn("現價",       width=95),
+        "差%":        st.column_config.TextColumn("差%",        width=85),
+        "距離中軌%":   st.column_config.TextColumn("距離中軌%",   width=95),
+        "BB日中軌":   st.column_config.TextColumn("BB日中軌",   width=95),
+        "BB中軌":     st.column_config.TextColumn("BB中軌",     width=65),
     }
 
     styled = (
