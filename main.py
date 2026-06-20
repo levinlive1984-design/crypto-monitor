@@ -137,7 +137,7 @@ st.markdown("""
         display: none !important;
     }
 
-    /* 浮動操作抽屜：選幣 + 顯示圖表 + 清除勾選，預設收在畫面右側外，
+    /* 浮動操作抽屜：選幣 + 恢復預設 + 清除勾選，預設收在畫面右側外，
        點擊 FAB 後滑出，無時無刻都浮動在畫面上 */
     .st-key-floating_action_bar {
         position: fixed;
@@ -196,7 +196,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 2.1 浮動 FAB：開關「選幣／顯示圖表／清除勾選」抽屜 ====================
+# ==================== 2.1 浮動 FAB：開關「選幣／恢復預設／清除勾選」抽屜 ====================
 def inject_panel_fab():
     components.html(
         """
@@ -213,7 +213,7 @@ def inject_panel_fab():
                     var fab = p.createElement('div');
                     fab.id = 'panel-fab';
                     fab.innerHTML = '🎛️';
-                    fab.title = '選幣 / 顯示圖表 / 清除勾選';
+                    fab.title = '選幣 / 恢復預設 / 清除勾選';
 
                     // 還原上次的開關狀態（避免按鈕觸發 rerun 後抽屜被重置成關閉）
                     var drawerNow = p.querySelector('.st-key-floating_action_bar');
@@ -372,7 +372,7 @@ with col_btn:
         st.cache_data.clear()
         st.rerun()
 
-# --- 圖表篩選狀態（不再使用搜尋框，改由「🎯 選幣」與「📊 顯示圖表」按鈕直接控制） ---
+# --- 圖表篩選狀態（不再使用搜尋框，改由「🎯 選幣」與「📊 恢復預設」按鈕直接控制） ---
 if "applied_search" not in st.session_state:
     st.session_state.applied_search = ""
 
@@ -484,7 +484,7 @@ if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
     # 圖表區專用的過濾結果（支援多幣種，用「、」或「,」分隔）
-    # 注意：這裡讀取的是「按下顯示圖表按鈕後」套用的 applied_search，
+    # 注意：這裡讀取的是「按下恢復預設按鈕後」套用的 applied_search，
     # 而不是輸入框即時的文字，避免每打一個字就重新畫圖表。
     active_search = st.session_state.get("applied_search", "")
     if active_search:
@@ -566,7 +566,7 @@ if results:
     with st.container(key="floating_action_bar"):
         st.markdown("<div style='color:#13f21a;font-size:11px;font-weight:bold;margin-bottom:6px;'>🎛️ 操作面板</div>", unsafe_allow_html=True)
         pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
-        show_all_clicked = st.button("📊 顯示圖表", use_container_width=True)
+        show_all_clicked = st.button("📊 恢復預設", use_container_width=True)
         clear_clicked = st.button("🗑️ 清除勾選", use_container_width=True)
 
     # 注入永遠浮動的 FAB 按鈕，點擊即可滑開/收起上方抽屜
@@ -582,7 +582,7 @@ if results:
         else:
             st.toast("請先勾選幣種", icon="⚠️")
 
-    # 「📊 顯示圖表」：恢復原廠設定，顯示全部幣種的圖表
+    # 「📊 恢復預設」：恢復原廠設定，顯示全部幣種的圖表
     if show_all_clicked:
         st.session_state.applied_search = ""
         st.toast("📊 已恢復顯示全部幣種圖表", icon="🔄")
