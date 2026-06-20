@@ -259,18 +259,28 @@ for i, symbol in enumerate(symbols):
             bb_pct = 0
             bb_pct_str = "—"
         
-        # 計算最近 20 根 HA 收盤價 相對 BB中軌 的 % 偏差序列 (供圖表使用)
+        # 計算最近 20 根 HA 收盤價（每根用「當天」的 BB中軌 計算 % 偏差）
         ha_last20 = ha1d[-20:]
         ha_closes_last20 = [k['close'] for k in ha_last20]
         ha_opens_last20 = [k['open'] for k in ha_last20]
         ha_times_last20 = [k['time'] for k in ha_last20]
 
-        if bb_basis_1d and bb_basis_1d > 0:
-            ha_pct_series = [(c - bb_basis_1d) / bb_basis_1d * 100 for c in ha_closes_last20]
-            ha_curr_pct = ha_pct_series[-1] if ha_pct_series else 0.0
-        else:
-            ha_pct_series = [0.0] * len(ha_closes_last20)
-            ha_curr_pct = 0.0
+        # 取得原始日線收盤價序列（用來計算每一天的 SMA20）
+        raw_closes = [k['close'] for k in k1d_raw]
+
+        ha_pct_series = []
+        for i in range(len(ha_last20)):
+            # 對應到 raw_closes 的結束位置（由舊到新）
+            end_idx = len(raw_closes) - (len(ha_last20) - 1 - i)
+            if end_idx >= 20:
+                sma20 = sum(raw_closes[end_idx-20 : end_idx]) / 20
+                ha_c = ha_closes_last20[i]
+                pct = (ha_c - sma20) / sma20 * 100 if sma20 > 0 else 0.0
+                ha_pct_series.append(pct)
+            else:
+                ha_pct_series.append(0.0)
+
+        ha_curr_pct = ha_pct_series[-1] if ha_pct_series else 0.0
         
         results.append({
             "幣種": symbol,
