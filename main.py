@@ -418,91 +418,91 @@ if results:
     n_cols = 2 if len(plot_results) > 4 else 3
     chart_cols = st.columns(n_cols)
 
-        for idx, r in enumerate(plot_results):
-            with chart_cols[idx % n_cols]:
-                with st.container(border=True):
-                    ha_series = r.get("_ha_pct_series", [0.0])
-                    curr_pct = r.get("_ha_curr_pct", 0.0)
-                    ha_opens = r.get("_ha_opens_last20", [])
-                    ha_closes = r.get("_ha_closes_last20", [])
-                    ha_times = r.get("_ha_times_last20", [])
+    for idx, r in enumerate(plot_results):
+        with chart_cols[idx % n_cols]:
+            with st.container(border=True):
+                ha_series = r.get("_ha_pct_series", [0.0])
+                curr_pct = r.get("_ha_curr_pct", 0.0)
+                ha_opens = r.get("_ha_opens_last20", [])
+                ha_closes = r.get("_ha_closes_last20", [])
+                ha_times = r.get("_ha_times_last20", [])
 
-                    # 標題
-                    st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}")
+                # 標題
+                st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}")
 
-                    # 建立 20期走勢圖
-                    fig, ax = plt.subplots(figsize=(5.8, 2.9), facecolor='#1e293b')
-                    ax.set_facecolor('#1e293b')
+                # 建立 20期走勢圖
+                fig, ax = plt.subplots(figsize=(5.8, 2.9), facecolor='#1e293b')
+                ax.set_facecolor('#1e293b')
 
-                    n = len(ha_series)
-                    x = list(range(n))
-                    y = ha_series
+                n = len(ha_series)
+                x = list(range(n))
+                y = ha_series
 
-                    # === 產生日期標籤 (台灣時間) ===
-                    if ha_times:
-                        last_ts = ha_times[-1] / 1000.0
-                        last_date = datetime.fromtimestamp(last_ts, tz=TW_TZ).date()
-                        date_labels = [(last_date - timedelta(days=n-1-i)).strftime('%m/%d') for i in range(n)]
+                # === 產生日期標籤 (台灣時間) ===
+                if ha_times:
+                    last_ts = ha_times[-1] / 1000.0
+                    last_date = datetime.fromtimestamp(last_ts, tz=TW_TZ).date()
+                    date_labels = [(last_date - timedelta(days=n-1-i)).strftime('%m/%d') for i in range(n)]
+                else:
+                    date_labels = [str(i) for i in range(n)]
+
+                # === 依每根 K 的方向著色階梯線 ===
+                # 黃色 (#fbbf24) = 當日 HA 收盤 > 開盤 (多頭)
+                # 紫色 (#B39DDB) = 當日 HA 收盤 < 開盤 (空頭)
+                for i in range(n-1):
+                    if i < len(ha_opens) and i < len(ha_closes):
+                        is_bull = ha_closes[i] > ha_opens[i]
+                        seg_color = '#fbbf24' if is_bull else '#B39DDB'
                     else:
-                        date_labels = [str(i) for i in range(n)]
+                        seg_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
 
-                    # === 依每根 K 的方向著色階梯線 ===
-                    # 黃色 (#fbbf24) = 當日 HA 收盤 > 開盤 (多頭)
-                    # 紫色 (#B39DDB) = 當日 HA 收盤 < 開盤 (空頭)
-                    for i in range(n-1):
-                        if i < len(ha_opens) and i < len(ha_closes):
-                            is_bull = ha_closes[i] > ha_opens[i]
-                            seg_color = '#fbbf24' if is_bull else '#B39DDB'
-                        else:
-                            seg_color = '#22c55e' if curr_pct >= 0 else '#ef4444'
+                    # 畫這一段 step
+                    ax.step([x[i], x[i+1]], [y[i], y[i+1]], where='post', color=seg_color, linewidth=2.3)
 
-                        # 畫這一段 step
-                        ax.step([x[i], x[i+1]], [y[i], y[i+1]], where='post', color=seg_color, linewidth=2.3)
+                # 目前最新點特別標註 (白色外框)
+                if n > 0:
+                    ax.plot(x[-1], y[-1], 'o', color='white', markersize=8, zorder=7)
+                    final_color = '#fbbf24' if (ha_closes and ha_opens and ha_closes[-1] > ha_opens[-1]) else '#B39DDB'
+                    ax.plot(x[-1], y[-1], 'o', color=final_color, markersize=4.5, zorder=8)
 
-                    # 目前最新點特別標註 (白色外框)
-                    if n > 0:
-                        ax.plot(x[-1], y[-1], 'o', color='white', markersize=8, zorder=7)
-                        final_color = '#fbbf24' if (ha_closes and ha_opens and ha_closes[-1] > ha_opens[-1]) else '#B39DDB'
-                        ax.plot(x[-1], y[-1], 'o', color=final_color, markersize=4.5, zorder=8)
+                # 中軌基準線 (改為淡灰色)
+                ax.axhline(0, color='#64748b', linestyle='--', linewidth=1.5, label='BB中軌 (0%)')
 
-                    # 中軌基準線 (改為淡灰色)
-                    ax.axhline(0, color='#64748b', linestyle='--', linewidth=1.5, label='BB中軌 (0%)')
+                # 區域填色 (保持原本邏輯)
+                ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.12, color='#22c55e', step='post', zorder=1)
+                ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.12, color='#ef4444', step='post', zorder=1)
 
-                    # 區域填色 (保持原本邏輯)
-                    ax.fill_between(x, y, 0, where=(np.array(y) >= 0), alpha=0.12, color='#22c55e', step='post', zorder=1)
-                    ax.fill_between(x, y, 0, where=(np.array(y) < 0), alpha=0.12, color='#ef4444', step='post', zorder=1)
+                # 給 Y 軸留一些空間，避免最新 % 數字被切掉
+                if y:
+                    y_min = min(y) - 4
+                    y_max = max(y) + 4
+                    ax.set_ylim(y_min, y_max)
 
-                    # 給 Y 軸留一些空間，避免最新 % 數字被切掉
-                    if y:
-                        y_min = min(y) - 4
-                        y_max = max(y) + 4
-                        ax.set_ylim(y_min, y_max)
+                # 設定
+                ax.set_xlim(-0.5, n - 0.5)
+                ax.set_xticks(x[::2])  # 每隔一天顯示日期，避免太密
+                ax.set_xticklabels(date_labels[::2], rotation=45, ha='right', fontsize=7, color='#94a3b8')
+                ax.set_xlabel('日期 (台灣時間)', fontsize=8, color='#94a3b8')
+                ax.set_ylabel('% 相對 BB中軌', fontsize=9, color='#94a3b8')
+                ax.set_title(f"中軌價格 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
 
-                    # 設定
-                    ax.set_xlim(-0.5, n - 0.5)
-                    ax.set_xticks(x[::2])  # 每隔一天顯示日期，避免太密
-                    ax.set_xticklabels(date_labels[::2], rotation=45, ha='right', fontsize=7, color='#94a3b8')
-                    ax.set_xlabel('日期 (台灣時間)', fontsize=8, color='#94a3b8')
-                    ax.set_ylabel('% 相對 BB中軌', fontsize=9, color='#94a3b8')
-                    ax.set_title(f"中軌價格 = {r['BB日中軌']}", fontsize=9, color='#cbd5e1', pad=4)
+                ax.tick_params(colors='#94a3b8', labelsize=7)
+                ax.grid(True, linestyle=':', alpha=0.35, color='#475569')
+                for spine in ax.spines.values():
+                    spine.set_color('#475569')
+                    spine.set_alpha(0.6)
 
-                    ax.tick_params(colors='#94a3b8', labelsize=7)
-                    ax.grid(True, linestyle=':', alpha=0.35, color='#475569')
-                    for spine in ax.spines.values():
-                        spine.set_color('#475569')
-                        spine.set_alpha(0.6)
+                # 在最新點下方標註目前數值（不會被遮擋）
+                ax.annotate(f'{curr_pct:+.2f}%', 
+                            xy=(x[-1], y[-1]), 
+                            xytext=(0, -12),
+                            textcoords='offset points', 
+                            ha='center', 
+                            va='top',
+                            fontsize=8, 
+                            color=final_color, 
+                            fontweight='bold')
 
-                    # 在最新點下方標註目前數值（不會被遮擋）
-                    ax.annotate(f'{curr_pct:+.2f}%', 
-                                xy=(x[-1], y[-1]), 
-                                xytext=(0, -12),
-                                textcoords='offset points', 
-                                ha='center', 
-                                va='top',
-                                fontsize=8, 
-                                color=final_color, 
-                                fontweight='bold')
-
-                    st.pyplot(fig, clear_figure=True, use_container_width=True)
+                st.pyplot(fig, clear_figure=True, use_container_width=True)
 
 st.toast(f"✅ {selection} SYNC COMPLETE.", icon="⚡")
