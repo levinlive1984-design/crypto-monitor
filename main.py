@@ -231,18 +231,30 @@ with col_btn:
 # --- 搜尋框（使用 session_state 控制，支援「套用至搜尋框」按鈕） ---
 if "search_term" not in st.session_state:
     st.session_state.search_term = ""
+if "applied_search" not in st.session_state:
+    st.session_state.applied_search = ""
 
-search_term = st.text_input(
-    "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
-    value=st.session_state.search_term,
-    placeholder="例如：BTC、ETH、DOGE",
-    label_visibility="collapsed",
-    key="search_input"
-)
+col_search, col_search_btn = st.columns([0.86, 0.14])
 
-# 讓使用者手動輸入時也能同步更新 session_state
+with col_search:
+    search_term = st.text_input(
+        "🔍 搜尋幣種（輸入名稱即可過濾表格與圖表）",
+        value=st.session_state.search_term,
+        placeholder="例如：BTC、ETH、DOGE",
+        label_visibility="collapsed",
+        key="search_input"
+    )
+
+with col_search_btn:
+    search_clicked = st.button("📊 顯示圖表", use_container_width=True)
+
+# 讓使用者手動輸入時也能同步更新 session_state（僅更新輸入框內容，尚未套用至圖表）
 if search_term != st.session_state.search_term:
     st.session_state.search_term = search_term
+
+# 按下「顯示圖表」按鈕後，才真正套用搜尋字串去篩選圖表（避免每打一個字就重畫圖表）
+if search_clicked:
+    st.session_state.applied_search = st.session_state.search_term
 
 # --- 執行分析循環 ---
 symbols = SYMBOLS_CONFIG[selection]
@@ -349,7 +361,9 @@ if results:
     df = pd.DataFrame(results).sort_values(by="val").drop(columns=["val"])
 
     # 圖表區專用的過濾結果（支援多幣種，用「、」或「,」分隔）
-    active_search = st.session_state.get("search_term", "") or search_term
+    # 注意：這裡讀取的是「按下顯示圖表按鈕後」套用的 applied_search，
+    # 而不是輸入框即時的文字，避免每打一個字就重新畫圖表。
+    active_search = st.session_state.get("applied_search", "")
     if active_search:
         search_terms = [t.strip().upper() for t in active_search.replace("、", ",").split(",") if t.strip()]
         if search_terms:
@@ -437,6 +451,7 @@ if results:
             if selected:
                 copy_text = "、".join(selected)
                 st.session_state.search_term = copy_text      # 直接寫入搜尋框
+                st.session_state.applied_search = copy_text   # 同步套用，圖表立刻顯示這些幣種
                 st.session_state["just_copied"] = True
                 st.success(f"已複製 {len(selected)} 個")
                 st.rerun()   # 讓搜尋框和圖表立刻更新
