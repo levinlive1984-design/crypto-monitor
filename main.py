@@ -638,7 +638,9 @@ if results:
                 ha_times = r.get("_ha_times_last20", [])
 
                 # 標題
-                st.markdown(f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}")
+                st.markdown(
+                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}"
+                )
 
                 # 建立 20期走勢圖
                 fig, ax = plt.subplots(figsize=(5.8, 2.9), facecolor='#1e293b')
