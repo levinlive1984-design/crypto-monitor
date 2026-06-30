@@ -567,6 +567,7 @@ def sync_index_to_github(
 # 目的：index.html 給人看；snapshot.json 給 ChatGPT / API 讀取；latest_signals.txt 當備援文字版。
 DATA_FILE = "snapshot.json"
 SUMMARY_FILE = "latest_signals.txt"
+AI_JSON_TEXT_FILE = "snapshot_pretty.txt"  # 給 ChatGPT / 瀏覽器穩定讀取的 text/plain 版 pretty JSON
 
 
 def _to_plain(value: Any) -> Any:
@@ -709,7 +710,36 @@ def write_snapshot_json(
         title=title,
     )
     path = out_dir / DATA_FILE
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_text = json.dumps(payload, ensure_ascii=False, indent=2)
+    path.write_text(json_text + "\n", encoding="utf-8")
+    return path
+
+
+def write_ai_snapshot_txt(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+) -> Path:
+    """
+    寫出 text/plain 版的 pretty JSON。
+    用途：有些讀取工具會把 application/json 壓成單行或只顯示 metadata，
+    但 .txt 通常可以穩定逐行讀取。
+    """
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_snapshot_payload(
+        df=df,
+        plot_results=list(plot_results),
+        selection=selection,
+        sort_option=sort_option,
+        title=title,
+    )
+    path = out_dir / AI_JSON_TEXT_FILE
+    json_text = json.dumps(payload, ensure_ascii=False, indent=2)
+    path.write_text(json_text + "\n", encoding="utf-8")
     return path
 
 
@@ -771,6 +801,7 @@ def write_static_outputs(
     )
     data_links = (
         '<span class="badge"><a style="color:inherit;text-decoration:none" href="snapshot.json">AI資料：snapshot.json</a></span>'
+        '<span class="badge"><a style="color:inherit;text-decoration:none" href="snapshot_pretty.txt">AI快讀：snapshot_pretty.txt</a></span>'
         '<span class="badge"><a style="color:inherit;text-decoration:none" href="latest_signals.txt">文字版：latest_signals.txt</a></span>'
     )
     target = '<span class="badge">snapshot：' + _escape(data_hash[:10]) + '</span>'
@@ -778,8 +809,9 @@ def write_static_outputs(
     index_path = out_dir / OUTPUT_FILE
     index_path.write_text(html_text, encoding="utf-8")
     snapshot_path = write_snapshot_json(df, plot_results, selection, sort_option, output_dir, title)
+    ai_snapshot_path = write_ai_snapshot_txt(df, plot_results, selection, sort_option, output_dir, title)
     summary_path = write_summary_txt(df, plot_results, selection, sort_option, output_dir, title)
-    return {"index": index_path, "snapshot": snapshot_path, "summary": summary_path, "snapshot_hash": data_hash}
+    return {"index": index_path, "snapshot": snapshot_path, "ai_snapshot": ai_snapshot_path, "summary": summary_path, "snapshot_hash": data_hash}
 
 
 # 覆蓋舊版 write_index_html：仍回傳 index.html 路徑，但會順手輸出 snapshot.json / latest_signals.txt。
@@ -884,6 +916,7 @@ def sync_index_to_github(
         skip_if_same_snapshot=True,
     )
     snapshot_repo_path = str(Path(repo_path).with_name(DATA_FILE)).replace("\\", "/")
+    ai_snapshot_repo_path = str(Path(repo_path).with_name(AI_JSON_TEXT_FILE)).replace("\\", "/")
     summary_repo_path = str(Path(repo_path).with_name(SUMMARY_FILE)).replace("\\", "/")
     snapshot_result = push_text_file_to_github(
         local_file=paths["snapshot"],
@@ -893,6 +926,14 @@ def sync_index_to_github(
         repo_path=snapshot_repo_path,
         commit_message=f"update crypto snapshot {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
     )
+    ai_snapshot_result = push_text_file_to_github(
+        local_file=paths["ai_snapshot"],
+        repo=repo,
+        token=token,
+        branch=branch,
+        repo_path=ai_snapshot_repo_path,
+        commit_message=f"update crypto readable snapshot {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
+    )
     summary_result = push_text_file_to_github(
         local_file=paths["summary"],
         repo=repo,
@@ -901,16 +942,18 @@ def sync_index_to_github(
         repo_path=summary_repo_path,
         commit_message=f"update crypto latest signals {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
     )
+    all_results = [index_result, snapshot_result, ai_snapshot_result, summary_result]
     return {
-        "status": "updated" if any(r.get("status") != "skipped" for r in [index_result, snapshot_result, summary_result]) else "skipped",
+        "status": "updated" if any(r.get("status") != "skipped" for r in all_results) else "skipped",
         "snapshot_hash": data_hash,
         "local_path": str(paths["index"]),
         "files": {
             "index": index_result,
             "snapshot": snapshot_result,
+            "ai_snapshot": ai_snapshot_result,
             "summary": summary_result,
         },
         "repo_path": repo_path,
         "branch": branch,
-        "commit_sha": index_result.get("commit_sha") or snapshot_result.get("commit_sha") or summary_result.get("commit_sha"),
+        "commit_sha": index_result.get("commit_sha") or snapshot_result.get("commit_sha") or ai_snapshot_result.get("commit_sha") or summary_result.get("commit_sha"),
     }
