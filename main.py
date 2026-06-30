@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
+from get import write_index_html, sync_index_to_github
 
 # ==================== 0. matplotlib 中文字型設定 ====================
 # 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
@@ -624,6 +625,56 @@ if results:
 
     # 直接顯示所有圖表（已移除 checkbox）
     plot_results = sorted_chart_results
+
+    # ==================== 輸出靜態 GitHub Pages index.html + 回寫 GitHub ====================
+    # main.py 只負責呼叫；實際 HTML / 圖表輸出與 GitHub 同步邏輯集中在 get.py，方便後續維護。
+    def _secret(name, default=""):
+        try:
+            return st.secrets.get(name, default)
+        except Exception:
+            return default
+
+    github_repo = _secret("GITHUB_REPO", "levinlive1984-design/crypto-monitor-go")
+    github_branch = _secret("GITHUB_BRANCH", "main")
+    github_pages_path = _secret("GITHUB_PAGES_PATH", "docs/index.html")
+    github_token = _secret("GITHUB_TOKEN", "")
+    auto_sync_github_pages = str(_secret("AUTO_SYNC_GITHUB_PAGES", "true")).lower() in ["1", "true", "yes", "y", "on"]
+
+    try:
+        # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
+        index_path = write_index_html(
+            df=df,
+            plot_results=plot_results,
+            selection=selection,
+            sort_option=sort_option,
+            output_dir="docs",
+            title="HA Crypto Terminal",
+        )
+        st.info(f"📄 已產生暫存靜態頁：{index_path}")
+
+        # Streamlit Cloud 的 docs/index.html 不會自己回寫 GitHub；這段會透過 GitHub API commit 回 repo。
+        if auto_sync_github_pages and github_token:
+            sync_result = sync_index_to_github(
+                df=df,
+                plot_results=plot_results,
+                selection=selection,
+                sort_option=sort_option,
+                repo=github_repo,
+                token=github_token,
+                branch=github_branch,
+                repo_path=github_pages_path,
+                output_dir="docs",
+                title="HA Crypto Terminal",
+            )
+            if sync_result.get("status") == "skipped":
+                st.info("✅ GitHub Pages 已是同一份圖表快照，略過重複 commit。")
+            else:
+                st.success(f"🚀 已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}")
+        elif not github_token:
+            st.warning("⚠️ 尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。")
+
+    except Exception as exc:
+        st.warning(f"⚠️ 靜態頁 / GitHub Pages 同步失敗：{exc}")
 
     n_cols = 2 if len(plot_results) > 4 else 3
     chart_cols = st.columns(n_cols)
