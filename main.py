@@ -640,6 +640,43 @@ if results:
     github_token = _secret("GITHUB_TOKEN", "")
     auto_sync_github_pages = str(_secret("AUTO_SYNC_GITHUB_PAGES", "true")).lower() in ["1", "true", "yes", "y", "on"]
 
+    def _github_pages_base_url(repo: str) -> str:
+        """依 GitHub repo 推出 GitHub Pages base URL。"""
+        try:
+            owner, repo_name = str(repo).strip().split("/", 1)
+            if repo_name.lower() == f"{owner.lower()}.github.io":
+                return f"https://{owner}.github.io/"
+            return f"https://{owner}.github.io/{repo_name}/"
+        except Exception:
+            return ""
+
+    def _render_pages_links(repo: str) -> None:
+        """在 Streamlit 畫面顯示可直接點擊的 GitHub Pages 檔案連結。"""
+        base_url = _github_pages_base_url(repo)
+        if not base_url:
+            return
+        links = {
+            "index.html｜圖表頁": base_url + "index.html",
+            "snapshot.json｜正式 JSON": base_url + "snapshot.json",
+            "snapshot_pretty.txt｜AI 快讀 JSON": base_url + "snapshot_pretty.txt",
+            "latest_signals.txt｜候選摘要": base_url + "latest_signals.txt",
+        }
+        link_html = "".join(
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
+            f'style="display:inline-block;margin:4px 8px 4px 0;padding:6px 10px;border:1px solid rgba(19,242,26,.55);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.55);">{label}</a>'
+            for label, url in links.items()
+        )
+        st.markdown(
+            f"""
+            <div style="margin:10px 0 16px 0;padding:12px 14px;border:1px solid rgba(19,242,26,.35);border-radius:10px;background:rgba(15,23,42,.75);">
+                <div style="color:#cbd5e1;font-weight:700;margin-bottom:6px;">🔗 GitHub Pages 快速連結</div>
+                <div>{link_html}</div>
+                <div style="color:#94a3b8;font-size:12px;margin-top:6px;">如果剛剛才回寫 GitHub，GitHub Pages 可能需要 30–120 秒刷新。</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     try:
         # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
         index_path = write_index_html(
@@ -672,6 +709,9 @@ if results:
                 st.success(f"🚀 已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}")
         elif not github_token:
             st.warning("⚠️ 尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。")
+
+        # 不論本次是 updated / skipped，只要 repo 設定正確，固定提供四個 GitHub Pages 連結。
+        _render_pages_links(github_repo)
 
     except Exception as exc:
         st.warning(f"⚠️ 靜態頁 / GitHub Pages 同步失敗：{exc}")
