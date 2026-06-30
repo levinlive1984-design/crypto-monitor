@@ -634,7 +634,7 @@ if results:
         except Exception:
             return default
 
-    github_repo = _secret("GITHUB_REPO", "levinlive1984-design/crypto-monitor-go")
+    github_repo = _secret("GITHUB_REPO", "levinlive1984-design/crypto-monitor")
     github_branch = _secret("GITHUB_BRANCH", "main")
     github_pages_path = _secret("GITHUB_PAGES_PATH", "docs/index.html")
     github_token = _secret("GITHUB_TOKEN", "")
