@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
-from get import write_index_html, sync_index_to_github
+from get import write_index_html, sync_index_to_github, write_snapshot_json, write_summary_txt, push_text_file_to_github
 
 # ==================== 0. matplotlib 中文字型設定 ====================
 # 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
@@ -666,10 +666,48 @@ if results:
                 output_dir="docs",
                 title="HA Crypto Terminal",
             )
-            if sync_result.get("status") == "skipped":
-                st.info("✅ GitHub Pages 已是同一份圖表快照，略過重複 commit。")
+            # 顯示完整同步結果，避免只知道 index.html 成功、不知道 snapshot.json 是否成功。
+            st.json(sync_result)
+
+            # 保險機制：即使 sync_index_to_github 只更新了 index.html，這裡也會明確補推 snapshot.json / latest_signals.txt。
+            snapshot_path = write_snapshot_json(
+                df=df,
+                plot_results=plot_results,
+                selection=selection,
+                sort_option=sort_option,
+                output_dir="docs",
+                title="HA Crypto Terminal",
+            )
+            summary_path = write_summary_txt(
+                df=df,
+                plot_results=plot_results,
+                selection=selection,
+                sort_option=sort_option,
+                output_dir="docs",
+                title="HA Crypto Terminal",
+            )
+            snapshot_result = push_text_file_to_github(
+                local_file=snapshot_path,
+                repo=github_repo,
+                token=github_token,
+                branch=github_branch,
+                repo_path="docs/snapshot.json",
+                commit_message=f"update crypto snapshot {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW",
+            )
+            summary_result = push_text_file_to_github(
+                local_file=summary_path,
+                repo=github_repo,
+                token=github_token,
+                branch=github_branch,
+                repo_path="docs/latest_signals.txt",
+                commit_message=f"update crypto latest signals {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW",
+            )
+            st.json({"snapshot_result": snapshot_result, "summary_result": summary_result})
+
+            if sync_result.get("status") == "skipped" and snapshot_result.get("status") == "skipped" and summary_result.get("status") == "skipped":
+                st.info("✅ GitHub Pages 三個檔案都已是同一份快照，略過重複 commit。")
             else:
-                st.success(f"🚀 已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}")
+                st.success("🚀 已回寫 GitHub Pages：index.html + snapshot.json + latest_signals.txt")
         elif not github_token:
             st.warning("⚠️ 尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。")
 
