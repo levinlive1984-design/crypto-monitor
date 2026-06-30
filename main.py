@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 import time
+import html
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
@@ -650,6 +651,35 @@ if results:
         except Exception:
             return ""
 
+    def _render_sync_status(messages: list[tuple[str, str]], default_open: bool = False) -> None:
+        """把同步狀態收成可展開的小頁籤，避免佔用圖表區上方空間。"""
+        if not messages:
+            return
+        details_attr = " open" if default_open else ""
+        rows = "".join(
+            f"""
+            <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid rgba(148,163,184,.12);">
+                <span style="min-width:18px;">{html.escape(icon)}</span>
+                <span style="color:#cbd5e1;">{html.escape(text)}</span>
+            </div>
+            """
+            for icon, text in messages
+        )
+        st.markdown(
+            f"""
+            <details{details_attr} style="margin:8px 0 8px 0;border:1px solid rgba(148,163,184,.22);border-radius:9px;background:rgba(15,23,42,.55);">
+                <summary style="cursor:pointer;list-style:none;padding:7px 10px;color:#94a3b8;font-size:11px;font-weight:700;user-select:none;">
+                    ▸ 靜態頁 / GitHub Pages 同步狀態
+                    <span style="color:#64748b;font-weight:400;margin-left:8px;">點開查看</span>
+                </summary>
+                <div style="padding:0 12px 8px 12px;font-size:11px;line-height:1.45;">
+                    {rows}
+                </div>
+            </details>
+            """,
+            unsafe_allow_html=True,
+        )
+
     def _render_pages_links(repo: str) -> None:
         """在 Streamlit 畫面顯示可直接點擊的 GitHub Pages 檔案連結。"""
         base_url = _github_pages_base_url(repo)
@@ -663,20 +693,21 @@ if results:
         }
         link_html = "".join(
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="display:inline-block;margin:4px 8px 4px 0;padding:6px 10px;border:1px solid rgba(19,242,26,.55);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.55);">{label}</a>'
+            f'style="display:inline-block;margin:2px 5px 2px 0;padding:4px 7px;border:1px solid rgba(19,242,26,.50);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.50);font-size:11px;line-height:1.2;">{label}</a>'
             for label, url in links.items()
         )
         st.markdown(
             f"""
-            <div style="margin:10px 0 16px 0;padding:12px 14px;border:1px solid rgba(19,242,26,.35);border-radius:10px;background:rgba(15,23,42,.75);">
-                <div style="color:#cbd5e1;font-weight:700;margin-bottom:6px;">🔗 GitHub Pages 快速連結</div>
-                <div>{link_html}</div>
-                <div style="color:#94a3b8;font-size:12px;margin-top:6px;">如果剛剛才回寫 GitHub，GitHub Pages 可能需要 30–120 秒刷新。</div>
+            <div style="margin:8px 0 12px 0;padding:9px 11px;border:1px solid rgba(19,242,26,.32);border-radius:9px;background:rgba(15,23,42,.70);">
+                <div style="color:#cbd5e1;font-weight:700;margin-bottom:5px;font-size:12px;">🔗 GitHub Pages 快速連結</div>
+                <div style="line-height:1.55;">{link_html}</div>
+                <div style="color:#94a3b8;font-size:10px;margin-top:4px;">剛回寫 GitHub 時，GitHub Pages 可能需要 30–120 秒刷新。</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+    sync_messages = []
     try:
         # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
         index_path = write_index_html(
@@ -687,7 +718,7 @@ if results:
             output_dir="docs",
             title="HA Crypto Terminal",
         )
-        st.info(f"📄 已產生暫存靜態頁：{index_path}")
+        sync_messages.append(("📄", f"已產生暫存靜態頁：{index_path}"))
 
         # Streamlit Cloud 的 docs/index.html 不會自己回寫 GitHub；這段會透過 GitHub API commit 回 repo。
         if auto_sync_github_pages and github_token:
@@ -704,13 +735,14 @@ if results:
                 title="HA Crypto Terminal",
             )
             if sync_result.get("status") == "skipped":
-                st.info("✅ GitHub Pages 已是同一份圖表快照，略過重複 commit。")
+                sync_messages.append(("✅", "GitHub Pages 已是同一份圖表快照，略過重複 commit。"))
             else:
-                st.success(f"🚀 已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}")
+                sync_messages.append(("🚀", f"已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}"))
         elif not github_token:
-            st.warning("⚠️ 尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。")
+            sync_messages.append(("⚠️", "尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。"))
 
-        # 不論本次是 updated / skipped，只要 repo 設定正確，固定提供四個 GitHub Pages 連結。
+        # 狀態收進可展開小頁籤；連結維持直接顯示，但縮小。
+        _render_sync_status(sync_messages, default_open=False)
         _render_pages_links(github_repo)
 
     except Exception as exc:
