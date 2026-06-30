@@ -652,33 +652,20 @@ if results:
             return ""
 
     def _render_sync_status(messages: list[tuple[str, str]], default_open: bool = False) -> None:
-        """把同步狀態收成可展開的小頁籤，避免佔用圖表區上方空間。"""
+        """使用 Streamlit 原生 expander 顯示同步狀態，避免 raw HTML 被 Markdown 誤判成程式碼區塊。"""
         if not messages:
             return
-        details_attr = " open" if default_open else ""
-        rows = "".join(
-            f"""
-            <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid rgba(148,163,184,.12);">
-                <span style="min-width:18px;">{html.escape(icon)}</span>
-                <span style="color:#cbd5e1;">{html.escape(text)}</span>
-            </div>
-            """
-            for icon, text in messages
-        )
-        st.markdown(
-            f"""
-            <details{details_attr} style="margin:8px 0 8px 0;border:1px solid rgba(148,163,184,.22);border-radius:9px;background:rgba(15,23,42,.55);">
-                <summary style="cursor:pointer;list-style:none;padding:7px 10px;color:#94a3b8;font-size:11px;font-weight:700;user-select:none;">
-                    ▸ 靜態頁 / GitHub Pages 同步狀態
-                    <span style="color:#64748b;font-weight:400;margin-left:8px;">點開查看</span>
-                </summary>
-                <div style="padding:0 12px 8px 12px;font-size:11px;line-height:1.45;">
-                    {rows}
-                </div>
-            </details>
-            """,
-            unsafe_allow_html=True,
-        )
+        with st.expander("靜態頁 / GitHub Pages 同步狀態　點開查看", expanded=default_open):
+            for icon, text in messages:
+                st.markdown(
+                    f"""
+                    <div style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-bottom:1px solid rgba(148,163,184,.10);font-size:11px;line-height:1.45;">
+                        <span style="min-width:18px;">{html.escape(icon)}</span>
+                        <span style="color:#cbd5e1;">{html.escape(text)}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     def _render_pages_links(repo: str) -> None:
         """在 Streamlit 畫面顯示可直接點擊的 GitHub Pages 檔案連結。"""
@@ -693,13 +680,13 @@ if results:
         }
         link_html = "".join(
             f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="display:inline-block;margin:2px 5px 2px 0;padding:4px 7px;border:1px solid rgba(19,242,26,.50);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.50);font-size:11px;line-height:1.2;">{label}</a>'
+            f'style="display:inline-block;margin:2px 5px 2px 0;padding:3px 6px;border:1px solid rgba(19,242,26,.50);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.50);font-size:10px;line-height:1.15;">{label}</a>'
             for label, url in links.items()
         )
         st.markdown(
             f"""
-            <div style="margin:8px 0 12px 0;padding:9px 11px;border:1px solid rgba(19,242,26,.32);border-radius:9px;background:rgba(15,23,42,.70);">
-                <div style="color:#cbd5e1;font-weight:700;margin-bottom:5px;font-size:12px;">🔗 GitHub Pages 快速連結</div>
+            <div style="margin:6px 0 10px 0;padding:7px 9px;border:1px solid rgba(19,242,26,.32);border-radius:9px;background:rgba(15,23,42,.70);">
+                <div style="color:#cbd5e1;font-weight:700;margin-bottom:4px;font-size:11px;">🔗 GitHub Pages 快速連結</div>
                 <div style="line-height:1.55;">{link_html}</div>
                 <div style="color:#94a3b8;font-size:10px;margin-top:4px;">剛回寫 GitHub 時，GitHub Pages 可能需要 30–120 秒刷新。</div>
             </div>
