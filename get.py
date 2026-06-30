@@ -560,3 +560,357 @@ def sync_index_to_github(
     )
     result["local_path"] = str(index_path)
     return result
+
+
+# ==================== AI 分析用資料輸出：snapshot.json / latest_signals.txt ====================
+# 這一段放在檔案最後，會覆蓋前面同名函式。
+# 目的：index.html 給人看；snapshot.json 給 ChatGPT / API 讀取；latest_signals.txt 當備援文字版。
+DATA_FILE = "snapshot.json"
+SUMMARY_FILE = "latest_signals.txt"
+
+
+def _to_plain(value: Any) -> Any:
+    """轉成 JSON 可安全序列化的 Python 原生型別。"""
+    if isinstance(value, pd.DataFrame):
+        return [_to_plain(row) for row in value.to_dict(orient="records")]
+    if isinstance(value, pd.Series):
+        return _to_plain(value.to_dict())
+    if isinstance(value, np.ndarray):
+        return [_to_plain(v) for v in value.tolist()]
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        return float(value)
+    if isinstance(value, float):
+        if np.isnan(value) or np.isinf(value):
+            return None
+        return round(value, 10)
+    if isinstance(value, dict):
+        return {str(k): _to_plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_plain(v) for v in value]
+    if value is pd.NA:
+        return None
+    return value
+
+
+def _records_from_df(df: pd.DataFrame) -> list[dict]:
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return []
+    keep = [
+        "幣種", "現價", "差%", "BB日中軌", "BB中軌",
+        "1D前", "1D當", "4H前", "4H當", "距離中軌%",
+        "_price", "_bb1d", "_bb_pct", "_abs_dev",
+    ]
+    cols = [c for c in keep if c in df.columns]
+    return _to_plain(df[cols].replace({np.nan: None}).to_dict(orient="records"))
+
+
+def _records_from_plot_results(plot_results: Iterable[dict]) -> list[dict]:
+    keep = [
+        "幣種", "現價", "差%", "BB日中軌", "BB中軌", "1D前", "1D當", "4H前", "4H當",
+        "距離中軌%", "_price", "_bb1d", "_bb_pct", "_abs_dev",
+        "_ha_pct_series", "_ha_curr_pct", "_ha_opens_last20", "_ha_closes_last20", "_ha_times_last20",
+    ]
+    out = []
+    for r in list(plot_results):
+        item = {k: r.get(k) for k in keep if k in r}
+        try:
+            item["symbol"] = r.get("幣種")
+            item["price"] = float(r.get("_price")) if r.get("_price") is not None else None
+            item["bb_basis_1d"] = float(r.get("_bb1d")) if r.get("_bb1d") is not None else None
+            item["bb_pct"] = float(r.get("_bb_pct")) if r.get("_bb_pct") is not None else None
+            item["abs_dev"] = float(r.get("_abs_dev")) if r.get("_abs_dev") is not None else None
+            item["ha_curr_pct"] = float(r.get("_ha_curr_pct")) if r.get("_ha_curr_pct") is not None else None
+        except Exception:
+            pass
+        out.append(_to_plain(item))
+    return out
+
+
+def _screen_candidates(charts: list[dict]) -> dict:
+    """機械式分組，非直接買賣建議。"""
+    def ok_num(x):
+        return isinstance(x, (int, float)) and not np.isnan(x)
+
+    rows = []
+    for r in charts:
+        abs_dev = r.get("abs_dev")
+        bb_pct = r.get("bb_pct")
+        row = {
+            "symbol": r.get("symbol") or r.get("幣種"),
+            "price": r.get("price"),
+            "bb_pct": bb_pct,
+            "abs_dev": abs_dev,
+            "1D當": r.get("1D當"),
+            "4H當": r.get("4H當"),
+            "4H前": r.get("4H前"),
+        }
+        if row["symbol"]:
+            rows.append(row)
+
+    near_midline = sorted([r for r in rows if ok_num(r.get("abs_dev"))], key=lambda x: x["abs_dev"])[:20]
+    bullish_above_midline = sorted(
+        [r for r in rows if ok_num(r.get("bb_pct")) and r["bb_pct"] >= 0 and r.get("1D當") == "🟢" and r.get("4H當") == "🟢"],
+        key=lambda x: abs(x.get("bb_pct", 999)),
+    )[:20]
+    rebound_watch = sorted(
+        [r for r in rows if ok_num(r.get("abs_dev")) and r["abs_dev"] <= 3 and r.get("4H當") == "🟢"],
+        key=lambda x: x["abs_dev"],
+    )[:20]
+    return {
+        "near_midline": near_midline,
+        "bullish_above_midline": bullish_above_midline,
+        "rebound_watch": rebound_watch,
+    }
+
+
+def build_snapshot_payload(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    title: str = "HA Crypto Terminal",
+    generated_at: Optional[str] = None,
+) -> dict:
+    plot_results = list(plot_results)
+    generated_at = generated_at or datetime.now(TW_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    data_hash = snapshot_hash(df, plot_results, selection=selection, sort_option=sort_option)
+    charts = _records_from_plot_results(plot_results)
+    return {
+        "title": title,
+        "generated_at_taiwan": generated_at,
+        "selection": selection,
+        "sort_option": sort_option,
+        "snapshot_hash": data_hash,
+        "count": len(df) if isinstance(df, pd.DataFrame) else 0,
+        "note": "index.html is visual; snapshot.json is the machine-readable data source for ChatGPT analysis.",
+        "table": _records_from_df(df),
+        "charts": charts,
+        "mechanical_groups": _screen_candidates(charts),
+    }
+
+
+def write_snapshot_json(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+) -> Path:
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = build_snapshot_payload(
+        df=df,
+        plot_results=list(plot_results),
+        selection=selection,
+        sort_option=sort_option,
+        title=title,
+    )
+    path = out_dir / DATA_FILE
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def write_summary_txt(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+) -> Path:
+    payload = build_snapshot_payload(df, list(plot_results), selection, sort_option, title)
+    lines = []
+    lines.append(f"{payload['title']}")
+    lines.append(f"更新時間：{payload['generated_at_taiwan']} 台灣時間")
+    lines.append(f"選單：{payload['selection']}")
+    lines.append(f"排序：{payload['sort_option']}")
+    lines.append(f"snapshot_hash：{payload['snapshot_hash']}")
+    lines.append("")
+    lines.append("=== 機械式候選分組，非直接買賣建議 ===")
+    for group_name, rows in payload["mechanical_groups"].items():
+        lines.append(f"\n[{group_name}]")
+        if not rows:
+            lines.append("無")
+            continue
+        for r in rows[:20]:
+            lines.append(
+                f"{r.get('symbol')} | price={r.get('price')} | bb_pct={r.get('bb_pct')} | "
+                f"abs_dev={r.get('abs_dev')} | 1D當={r.get('1D當')} | 4H前={r.get('4H前')} | 4H當={r.get('4H當')}"
+            )
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / SUMMARY_FILE
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
+
+
+def write_static_outputs(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+    max_charts: Optional[int] = None,
+) -> dict:
+    plot_results = list(plot_results)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    data_hash = snapshot_hash(df, plot_results, selection=selection, sort_option=sort_option)
+    html_text = build_index_html(
+        df=df,
+        plot_results=plot_results,
+        selection=selection,
+        sort_option=sort_option,
+        title=title,
+        max_charts=max_charts,
+        data_hash=data_hash,
+    )
+    data_links = (
+        '<span class="badge"><a style="color:inherit;text-decoration:none" href="snapshot.json">AI資料：snapshot.json</a></span>'
+        '<span class="badge"><a style="color:inherit;text-decoration:none" href="latest_signals.txt">文字版：latest_signals.txt</a></span>'
+    )
+    target = '<span class="badge">snapshot：' + _escape(data_hash[:10]) + '</span>'
+    html_text = html_text.replace(target, target + data_links)
+    index_path = out_dir / OUTPUT_FILE
+    index_path.write_text(html_text, encoding="utf-8")
+    snapshot_path = write_snapshot_json(df, plot_results, selection, sort_option, output_dir, title)
+    summary_path = write_summary_txt(df, plot_results, selection, sort_option, output_dir, title)
+    return {"index": index_path, "snapshot": snapshot_path, "summary": summary_path, "snapshot_hash": data_hash}
+
+
+# 覆蓋舊版 write_index_html：仍回傳 index.html 路徑，但會順手輸出 snapshot.json / latest_signals.txt。
+def write_index_html(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str = "—",
+    sort_option: str = "—",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+    max_charts: Optional[int] = None,
+) -> Path:
+    paths = write_static_outputs(
+        df=df,
+        plot_results=list(plot_results),
+        selection=selection,
+        sort_option=sort_option,
+        output_dir=output_dir,
+        title=title,
+        max_charts=max_charts,
+    )
+    return paths["index"]
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def push_text_file_to_github(
+    local_file: str | Path,
+    repo: str,
+    token: str,
+    branch: str = "main",
+    repo_path: str = "docs/snapshot.json",
+    commit_message: Optional[str] = None,
+) -> dict:
+    if not token:
+        raise ValueError("缺少 GitHub token。請在 Streamlit Secrets 設定 GITHUB_TOKEN。")
+    local_path = Path(local_file)
+    local_text = local_path.read_text(encoding="utf-8")
+    local_hash = _sha256_text(local_text)
+    remote = _get_remote_file(repo=repo, path=repo_path, branch=branch, token=token)
+    remote_text = remote.get("content_text") or ""
+    remote_hash = _sha256_text(remote_text) if remote.get("exists") else None
+    if remote.get("exists") and remote_hash == local_hash:
+        return {"status": "skipped", "reason": "remote file content is identical", "repo_path": repo_path, "hash": local_hash}
+
+    encoded = base64.b64encode(local_path.read_bytes()).decode("ascii")
+    now_tw = datetime.now(TW_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    payload = {
+        "message": commit_message or f"update {repo_path} {now_tw} TW",
+        "content": encoded,
+        "branch": branch,
+    }
+    if remote.get("sha"):
+        payload["sha"] = remote["sha"]
+    url = f"{GITHUB_API_BASE}/repos/{repo}/contents/{repo_path}"
+    resp = requests.put(url, headers=_github_headers(token), json=payload, timeout=45)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"GitHub 寫入 {repo_path} 失敗：HTTP {resp.status_code} {resp.text[:500]}")
+    data = resp.json()
+    return {
+        "status": "updated" if remote.get("exists") else "created",
+        "repo_path": repo_path,
+        "hash": local_hash,
+        "commit_sha": (data.get("commit") or {}).get("sha"),
+    }
+
+
+# 覆蓋舊版 sync_index_to_github：除了 index.html，也同步 snapshot.json 與 latest_signals.txt。
+def sync_index_to_github(
+    df: pd.DataFrame,
+    plot_results: Iterable[dict],
+    selection: str,
+    sort_option: str,
+    repo: str,
+    token: str,
+    branch: str = "main",
+    repo_path: str = "docs/index.html",
+    output_dir: str | Path = OUTPUT_DIR,
+    title: str = "HA Crypto Terminal",
+    max_charts: Optional[int] = None,
+) -> dict:
+    plot_results = list(plot_results)
+    paths = write_static_outputs(
+        df=df,
+        plot_results=plot_results,
+        selection=selection,
+        sort_option=sort_option,
+        output_dir=output_dir,
+        title=title,
+        max_charts=max_charts,
+    )
+    data_hash = paths["snapshot_hash"]
+    index_result = push_file_to_github(
+        local_file=paths["index"],
+        repo=repo,
+        token=token,
+        branch=branch,
+        repo_path=repo_path,
+        commit_message=f"update crypto index {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
+        skip_if_same_snapshot=True,
+    )
+    snapshot_repo_path = str(Path(repo_path).with_name(DATA_FILE)).replace("\\", "/")
+    summary_repo_path = str(Path(repo_path).with_name(SUMMARY_FILE)).replace("\\", "/")
+    snapshot_result = push_text_file_to_github(
+        local_file=paths["snapshot"],
+        repo=repo,
+        token=token,
+        branch=branch,
+        repo_path=snapshot_repo_path,
+        commit_message=f"update crypto snapshot {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
+    )
+    summary_result = push_text_file_to_github(
+        local_file=paths["summary"],
+        repo=repo,
+        token=token,
+        branch=branch,
+        repo_path=summary_repo_path,
+        commit_message=f"update crypto latest signals {datetime.now(TW_TZ).strftime('%Y-%m-%d %H:%M:%S')} TW {data_hash[:8]}",
+    )
+    return {
+        "status": "updated" if any(r.get("status") != "skipped" for r in [index_result, snapshot_result, summary_result]) else "skipped",
+        "snapshot_hash": data_hash,
+        "local_path": str(paths["index"]),
+        "files": {
+            "index": index_result,
+            "snapshot": snapshot_result,
+            "summary": summary_result,
+        },
+        "repo_path": repo_path,
+        "branch": branch,
+        "commit_sha": index_result.get("commit_sha") or snapshot_result.get("commit_sha") or summary_result.get("commit_sha"),
+    }
