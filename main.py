@@ -606,8 +606,8 @@ if results:
     sort_option = st.selectbox(
         "圖表排序方式",
         options=[
-            "依「距離中軌%」距離近的排序（預設）",
-            "依目前的日K收盤價 > 開盤價排序（多頭優先）",
+            "依目前的日K收盤價 > 開盤價排序（預設多頭優先）",
+            "依「距離中軌%」距離近的排序（中軌距離）",
             "依目前的日K收盤價 < 開盤價排序（空頭優先）",
             "依幣種英文字母順序排序"
         ],
@@ -615,10 +615,10 @@ if results:
     )
 
     # 根據選擇的排序方式處理圖表列表
-    if sort_option == "依「距離中軌%」距離近的排序（預設）":
-        sorted_chart_results = sorted(chart_results, key=lambda x: x["_abs_dev"])
-    elif sort_option == "依目前的日K收盤價 > 開盤價排序（多頭優先）":
+    if sort_option == "依目前的日K收盤價 > 開盤價排序（預設多頭優先）":
         sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
+    elif sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
+        sorted_chart_results = sorted(chart_results, key=lambda x: x["_abs_dev"])
     elif sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
         sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
     else:  # 依幣種英文字母順序排序
