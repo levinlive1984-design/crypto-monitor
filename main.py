@@ -615,14 +615,19 @@ if results:
     )
 
     # 根據選擇的排序方式處理圖表列表
-    if sort_option == "依目前的日K收盤價 > 開盤價排序（預設多頭優先）":
-        sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
-    elif sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
-        sorted_chart_results = sorted(chart_results, key=lambda x: x["_abs_dev"])
-    elif sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
-        sorted_chart_results = sorted(chart_results, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
-    else:  # 依幣種英文字母順序排序
-        sorted_chart_results = sorted(chart_results, key=lambda x: x["幣種"])
+    def _sort_chart_items(items):
+        if sort_option == "依目前的日K收盤價 > 開盤價排序（預設多頭優先）":
+            return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
+        elif sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
+            return sorted(items, key=lambda x: x["_abs_dev"])
+        elif sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
+            return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
+        else:  # 依幣種英文字母順序排序
+            return sorted(items, key=lambda x: x["幣種"])
+
+    # 畫面顯示可以被「選幣」過濾；但輸出給 GPT 的 snapshot 必須永遠包含完整 results。
+    sorted_chart_results = _sort_chart_items(chart_results)
+    static_plot_results = _sort_chart_items(results)
 
     # 直接顯示所有圖表（已移除 checkbox）
     plot_results = sorted_chart_results
@@ -699,7 +704,7 @@ if results:
         # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
         index_path = write_index_html(
             df=df,
-            plot_results=plot_results,
+            plot_results=static_plot_results,
             selection=selection,
             sort_option=sort_option,
             output_dir="docs",
@@ -711,7 +716,7 @@ if results:
         if auto_sync_github_pages and github_token:
             sync_result = sync_index_to_github(
                 df=df,
-                plot_results=plot_results,
+                plot_results=static_plot_results,
                 selection=selection,
                 sort_option=sort_option,
                 repo=github_repo,
