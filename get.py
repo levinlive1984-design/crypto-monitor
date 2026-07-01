@@ -1033,109 +1033,31 @@ def write_summary_txt(
     output_dir: str | Path = OUTPUT_DIR,
     title: str = "HA Crypto Terminal",
 ) -> Path:
-    """
-    給 GPT 穩定讀取的 line-based 報告。
-
-    不再把 latest_signals.txt 當「簡短摘要」；改成一行一幣、固定欄位、含最近 8 根黃/紫階梯。
-    目的：避免 JSON 在瀏覽器看起來很漂亮，但 ChatGPT 讀取工具把 application/json 視為單行大型物件。
-    """
     payload = build_snapshot_payload(df, list(plot_results), selection, sort_option, title)
-    charts = payload.get("charts", []) or []
-    groups = payload.get("mechanical_groups", {}) or {}
-
-    def _fmt_num(v, nd=2):
-        try:
-            if v is None:
-                return "—"
-            return f"{float(v):.{nd}f}"
-        except Exception:
-            return "—"
-
-    def _flag(v):
-        return "Y" if bool(v) else "N"
-
-    def _one_line_record(r: dict) -> str:
-        flags = r.get("pattern_flags") or {}
-        tail = r.get("ladder_tail") or []
-        tail_txt = " > ".join(
-            f"{h.get('date')}:{h.get('color_emoji', '—')}{_fmt_num(h.get('pct_vs_midline'), 2)}%"
-            for h in tail
-        ) or "—"
-        return (
-            f"{r.get('symbol') or r.get('幣種')} | "
-            f"score={r.get('machine_score_hint_0_100')} | "
-            f"type={r.get('pattern_type_hint')} | "
-            f"price={r.get('price')} | "
-            f"bb_pct={_fmt_num(r.get('bb_pct'), 2)}% | "
-            f"abs_dev={_fmt_num(r.get('abs_dev'), 2)}% | "
-            f"1D前={r.get('1D前')} 1D當={r.get('1D當')} | "
-            f"4H前={r.get('4H前')} 4H當={r.get('4H當')} | "
-            f"latest={flags.get('latest_color_emoji')} {_fmt_num(flags.get('latest_pct_vs_midline'), 2)}% | "
-            f"run={flags.get('current_color_run', {}).get('color')}/{flags.get('current_color_run', {}).get('length')} | "
-            f"breakout_restart={_flag(flags.get('breakout_pullback_yellow_restart'))} | "
-            f"po3={_flag(flags.get('below_midline_po3_amd_candidate'))} | "
-            f"yellow_over={flags.get('yellow_over_previous_purple_count')} | "
-            f"4H_trigger={flags.get('four_h_trigger_label')} | "
-            f"ladder_tail={tail_txt}"
-        )
-
-    charts_sorted = sorted(
-        charts,
-        key=lambda r: (-(r.get("machine_score_hint_0_100") or 0), abs(r.get("bb_pct") or 999)),
-    )
-
     lines = []
-    lines.append("GPT_READABLE_CRYPTO_MONITOR_REPORT")
-    lines.append(f"title={payload.get('title')}")
-    lines.append(f"generated_at_taiwan={payload.get('generated_at_taiwan')}")
-    lines.append(f"selection={payload.get('selection')}")
-    lines.append(f"sort_option={payload.get('sort_option')}")
-    lines.append(f"snapshot_hash={payload.get('snapshot_hash')}")
-    lines.append(f"count={payload.get('count')}")
-    lines.append("schema=一行一幣；🟡=HA收盤上梯；🟣=HA收盤下梯；bb_pct=現價vs日線BB中軌；latest=最新HA階梯相對中軌位置。")
-    lines.append("analysis_rule_hint=優先看 breakout_restart=Y 且 4H前🔴→4H當🟢；其次看 po3=Y / yellow_over>=2；距離中軌過遠且4H轉紅要降分。")
+    lines.append(f"{payload['title']}")
+    lines.append(f"更新時間：{payload['generated_at_taiwan']} 台灣時間")
+    lines.append(f"選單：{payload['selection']}")
+    lines.append(f"排序：{payload['sort_option']}")
+    lines.append(f"snapshot_hash：{payload['snapshot_hash']}")
     lines.append("")
-
-    lines.append("=== TOP 30 BY MACHINE SCORE HINT ===")
-    for r in charts_sorted[:30]:
-        lines.append(_one_line_record(r))
-
-    lines.append("")
-    lines.append("=== MECHANICAL GROUPS ===")
-    group_order = [
-        "breakout_pullback_restart",
-        "po3_amd_yellow_over_purple_steps",
-        "four_h_red_to_green",
-        "high_score_hint_over_60",
-        "near_midline",
-        "bullish_above_midline",
-        "rebound_watch",
-    ]
-    chart_by_symbol = {(r.get("symbol") or r.get("幣種")): r for r in charts}
-    for group_name in group_order:
-        rows = groups.get(group_name, []) or []
-        lines.append(f"\n[{group_name}] count={len(rows)}")
+    lines.append("=== 機械式候選分組，非直接買賣建議 ===")
+    for group_name, rows in payload["mechanical_groups"].items():
+        lines.append(f"\n[{group_name}]")
         if not rows:
             lines.append("無")
             continue
-        for row in rows[:20]:
-            symbol = row.get("symbol")
-            full = chart_by_symbol.get(symbol)
-            if full:
-                lines.append(_one_line_record(full))
-            else:
-                lines.append(str(row))
-
-    lines.append("")
-    lines.append("=== ALL SYMBOL RECORDS ===")
-    for r in charts_sorted:
-        lines.append(_one_line_record(r))
-
+        for r in rows[:20]:
+            lines.append(
+                f"{r.get('symbol')} | price={r.get('price')} | bb_pct={r.get('bb_pct')} | "
+                f"abs_dev={r.get('abs_dev')} | 1D當={r.get('1D當')} | 4H前={r.get('4H前')} | 4H當={r.get('4H當')}"
+            )
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / SUMMARY_FILE
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines), encoding="utf-8")
     return path
+
 
 def write_static_outputs(
     df: pd.DataFrame,
