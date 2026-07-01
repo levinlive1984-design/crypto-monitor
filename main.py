@@ -649,6 +649,7 @@ if results:
         "型態：🚀中軌突破回踩再啟動型",
         "型態：⚡中軌下方 PO3/AMD 強反轉型",
         "型態：🧲中軌下方 PO3/AMD 反轉候選型",
+        "型態：🕒中軌下方 PO3/AMD 轉黃早期觀察型",
         "型態：🛩中軌突破回踩轉黃型",
         "型態：🧩中軌附近磨合轉黃型",
         "型態：🔄4H 前紅 → 4H 當綠",
@@ -679,6 +680,8 @@ if results:
             return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 強反轉型"]
         if sort_option == "型態：🧲中軌下方 PO3/AMD 反轉候選型":
             return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 反轉候選型"]
+        if sort_option == "型態：🕒中軌下方 PO3/AMD 轉黃早期觀察型":
+            return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 轉黃早期觀察型"]
         if sort_option == "型態：🛩中軌突破回踩轉黃型":
             return [x for x in items if _pattern(x) == "中軌突破回踩轉黃型"]
         if sort_option == "型態：🧩中軌附近磨合轉黃型":
