@@ -4,11 +4,12 @@ import streamlit as st
 from datetime import datetime, timezone, timedelta
 import time
 import html
+import json
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
-from get import write_index_html, sync_index_to_github
+from get import build_snapshot_payload
 
 # ==================== 0. matplotlib 中文字型設定 ====================
 # 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
@@ -359,7 +360,7 @@ SYMBOLS_CONFIG = {
 
 # ==================== 5. 介面佈局 ====================
 
-col_title, col_select, col_btn = st.columns([0.65, 0.22, 0.13])
+col_title, col_select, col_btn, col_download = st.columns([0.50, 0.22, 0.12, 0.16])
 
 with col_title:
     st.markdown("<div class='cyber-title'>Heikin-Ashi Monitor Terminal</div>", unsafe_allow_html=True)
@@ -373,6 +374,9 @@ with col_btn:
     if st.button("⚡ 重新分析"):
         st.cache_data.clear()
         st.rerun()
+
+with col_download:
+    snapshot_download_slot = st.empty()
 
 # --- 圖表篩選狀態（不再使用搜尋框，改由「🎯 選幣」與「📊 恢復預設」按鈕直接控制） ---
 if "applied_search" not in st.session_state:
@@ -632,113 +636,8 @@ if results:
     # 直接顯示所有圖表（已移除 checkbox）
     plot_results = sorted_chart_results
 
-    # ==================== 輸出靜態 GitHub Pages index.html + 回寫 GitHub ====================
-    # main.py 只負責呼叫；實際 HTML / 圖表輸出與 GitHub 同步邏輯集中在 get.py，方便後續維護。
-    def _secret(name, default=""):
-        try:
-            return st.secrets.get(name, default)
-        except Exception:
-            return default
-
-    github_repo = _secret("GITHUB_REPO", "levinlive1984-design/crypto-monitor")
-    github_branch = _secret("GITHUB_BRANCH", "main")
-    github_pages_path = _secret("GITHUB_PAGES_PATH", "docs/index.html")
-    github_token = _secret("GITHUB_TOKEN", "")
-    auto_sync_github_pages = str(_secret("AUTO_SYNC_GITHUB_PAGES", "true")).lower() in ["1", "true", "yes", "y", "on"]
-
-    def _github_pages_base_url(repo: str) -> str:
-        """依 GitHub repo 推出 GitHub Pages base URL。"""
-        try:
-            owner, repo_name = str(repo).strip().split("/", 1)
-            if repo_name.lower() == f"{owner.lower()}.github.io":
-                return f"https://{owner}.github.io/"
-            return f"https://{owner}.github.io/{repo_name}/"
-        except Exception:
-            return ""
-
-    def _render_sync_status(messages: list[tuple[str, str]], default_open: bool = False) -> None:
-        """使用 Streamlit 原生 expander 顯示同步狀態，避免 raw HTML 被 Markdown 誤判成程式碼區塊。"""
-        if not messages:
-            return
-        with st.expander("靜態頁 / GitHub Pages 同步狀態　點開查看", expanded=default_open):
-            for icon, text in messages:
-                st.markdown(
-                    f"""
-                    <div style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-bottom:1px solid rgba(148,163,184,.10);font-size:11px;line-height:1.45;">
-                        <span style="min-width:18px;">{html.escape(icon)}</span>
-                        <span style="color:#cbd5e1;">{html.escape(text)}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-    def _render_pages_links(repo: str) -> None:
-        """在 Streamlit 畫面顯示可直接點擊的 GitHub Pages 檔案連結。"""
-        base_url = _github_pages_base_url(repo)
-        if not base_url:
-            return
-        links = {
-            "index.html｜圖表頁": base_url + "index.html",
-            "snapshot.json｜正式 JSON": base_url + "snapshot.json",
-            "snapshot_pretty.txt｜AI 快讀 JSON": base_url + "snapshot_pretty.txt",
-            "latest_signals.txt｜候選摘要": base_url + "latest_signals.txt",
-        }
-        link_html = "".join(
-            f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
-            f'style="display:inline-block;margin:2px 5px 2px 0;padding:3px 6px;border:1px solid rgba(19,242,26,.50);border-radius:999px;color:#13f21a;text-decoration:none;background:rgba(15,23,42,.50);font-size:10px;line-height:1.15;">{label}</a>'
-            for label, url in links.items()
-        )
-        st.markdown(
-            f"""
-            <div style="margin:6px 0 10px 0;padding:7px 9px;border:1px solid rgba(19,242,26,.32);border-radius:9px;background:rgba(15,23,42,.70);">
-                <div style="color:#cbd5e1;font-weight:700;margin-bottom:4px;font-size:11px;">🔗 GitHub Pages 快速連結</div>
-                <div style="line-height:1.55;">{link_html}</div>
-                <div style="color:#94a3b8;font-size:10px;margin-top:4px;">剛回寫 GitHub 時，GitHub Pages 可能需要 30–120 秒刷新。</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    sync_messages = []
-    try:
-        # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
-        index_path = write_index_html(
-            df=df,
-            plot_results=static_plot_results,
-            selection=selection,
-            sort_option=sort_option,
-            output_dir="docs",
-            title="HA Crypto Terminal",
-        )
-        sync_messages.append(("📄", f"已產生暫存靜態頁：{index_path}"))
-
-        # Streamlit Cloud 的 docs/index.html 不會自己回寫 GitHub；這段會透過 GitHub API commit 回 repo。
-        if auto_sync_github_pages and github_token:
-            sync_result = sync_index_to_github(
-                df=df,
-                plot_results=static_plot_results,
-                selection=selection,
-                sort_option=sort_option,
-                repo=github_repo,
-                token=github_token,
-                branch=github_branch,
-                repo_path=github_pages_path,
-                output_dir="docs",
-                title="HA Crypto Terminal",
-            )
-            if sync_result.get("status") == "skipped":
-                sync_messages.append(("✅", "GitHub Pages 已是同一份圖表快照，略過重複 commit。"))
-            else:
-                sync_messages.append(("🚀", f"已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}"))
-        elif not github_token:
-            sync_messages.append(("⚠️", "尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。"))
-
-        # 狀態收進可展開小頁籤；連結維持直接顯示，但縮小。
-        _render_sync_status(sync_messages, default_open=False)
-        _render_pages_links(github_repo)
-
-    except Exception as exc:
-        st.warning(f"⚠️ 靜態頁 / GitHub Pages 同步失敗：{exc}")
+    # 不再寫入任何 docs 靜態檔，也不再做任何遠端同步。
+    # 只在 Streamlit 當下 runtime 組出 snapshot_pretty 文字，等下方圖表全部畫完後提供右上角下載。
 
     n_cols = 2 if len(plot_results) > 4 else 3
     chart_cols = st.columns(n_cols)
@@ -835,4 +734,23 @@ if results:
 
                 st.pyplot(fig, clear_figure=True, use_container_width=True)
 
-st.toast(f"✅ {selection} SYNC COMPLETE.", icon="⚡")
+    # 全部圖表渲染完成後，才在右上角出現當下 runtime 的 snapshot_pretty.txt 下載按鈕。
+    snapshot_payload = build_snapshot_payload(
+        df=df,
+        plot_results=static_plot_results,
+        selection=selection,
+        sort_option=sort_option,
+        title="HA Crypto Terminal",
+    )
+    snapshot_pretty_text = json.dumps(snapshot_payload, ensure_ascii=False, indent=2) + "\n"
+
+    with snapshot_download_slot.container():
+        st.download_button(
+            label="📥 snapshot_pretty.txt｜當下 AI 快讀檔",
+            data=snapshot_pretty_text,
+            file_name="snapshot_pretty.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+st.toast(f"✅ {selection} PAGE LOADED.", icon="⚡")
