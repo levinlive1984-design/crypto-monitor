@@ -640,22 +640,28 @@ if results:
     annotated_chart_results = _annotate_chart_items(chart_results)
     annotated_all_results = _annotate_chart_items(results)
 
-    # --- 圖表排序 / 型態過濾選單 ---
-    sort_option = st.selectbox(
-        "圖表排序 / 型態過濾方式",
-        options=[
-            "依機械分數高到低排序(預設)",
-            "型態：🚀中軌突破回踩再啟動型",
-            "型態：⚡中軌下方 PO3/AMD 強反轉型",
-            "型態：🧲中軌下方 PO3/AMD 反轉候選型",
-            "型態：🛩中軌突破回踩轉黃型",
-            "型態：🧩中軌附近磨合轉黃型",
-            "型態：🔄4H 前紅 → 4H 當綠",
-            "型態：☔紫線未轉黃觀察型",
-            "依幣種英文字母順序排序",
-        ],
-        index=0,
-    )
+    # --- 圖表排序 / 型態過濾選單設定 ---
+    # 重要：這裡不直接渲染 selectbox。
+    # 先讀取 session_state 內的選項來決定本輪圖表；等所有圖表畫完後，
+    # 再把 selectbox 填進 pattern_filter_slot，避免頁面尚未載完時就能亂選。
+    PATTERN_SORT_OPTIONS = [
+        "依機械分數高到低排序(預設)",
+        "型態：🚀中軌突破回踩再啟動型",
+        "型態：⚡中軌下方 PO3/AMD 強反轉型",
+        "型態：🧲中軌下方 PO3/AMD 反轉候選型",
+        "型態：🛩中軌突破回踩轉黃型",
+        "型態：🧩中軌附近磨合轉黃型",
+        "型態：🔄4H 前紅 → 4H 當綠",
+        "型態：☔紫線未轉黃觀察型",
+        "依幣種英文字母順序排序",
+    ]
+    if "pattern_sort_option" not in st.session_state:
+        st.session_state.pattern_sort_option = PATTERN_SORT_OPTIONS[0]
+    if st.session_state.pattern_sort_option not in PATTERN_SORT_OPTIONS:
+        st.session_state.pattern_sort_option = PATTERN_SORT_OPTIONS[0]
+
+    sort_option = st.session_state.pattern_sort_option
+    pattern_filter_slot = st.empty()
 
     def _score(item):
         return int(item.get("_machine_score_hint_0_100") or 0)
@@ -718,17 +724,11 @@ if results:
                 ha_closes = r.get("_ha_closes_last20", [])
                 ha_times = r.get("_ha_times_last20", [])
 
-                # 標題：第一行顯示幣種 / 現價 / 偏離 / 4H；第二行顯示型態與機械分數
+                # 標題：加入 get.py 解析出的型態與機械分數
                 pattern_label = r.get("_pattern_type_hint", "一般觀察型")
                 score_label = r.get("_machine_score_hint_0_100", 0)
                 st.markdown(
-                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}"
-                )
-                st.markdown(
-                    f"<div style='font-size:13px;color:#cbd5e1;margin-top:-10px;margin-bottom:8px;'>"
-                    f"型態：{html.escape(str(pattern_label))}　|　分數：{score_label}/100"
-                    f"</div>",
-                    unsafe_allow_html=True,
+                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}　|　型態：{pattern_label}　|　分數：{score_label}/100"
                 )
 
                 # 建立 20期走勢圖
@@ -808,6 +808,17 @@ if results:
                             fontweight='bold')
 
                 st.pyplot(fig, clear_figure=True, use_container_width=True)
+
+    # 全部圖表渲染完成後，才把「圖表排序 / 型態過濾方式」選單填回上方 placeholder。
+    # 使用者此時才看得到選單；切換選項會觸發 Streamlit rerun，下一輪再依新選項過濾圖表。
+    with pattern_filter_slot.container():
+        current_index = PATTERN_SORT_OPTIONS.index(st.session_state.pattern_sort_option)
+        st.selectbox(
+            "圖表排序 / 型態過濾方式",
+            options=PATTERN_SORT_OPTIONS,
+            index=current_index,
+            key="pattern_sort_option",
+        )
 
     # 全部圖表渲染完成後，才在右上角出現當下 runtime 的 snapshot_pretty.txt 下載按鈕。
     snapshot_payload = build_snapshot_payload(
