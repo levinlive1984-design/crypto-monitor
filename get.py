@@ -454,20 +454,19 @@ def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
     }
 
 def _classify_pattern(flags: dict) -> str:
-    if flags.get("breakout_pullback_yellow_restart") and flags.get("four_h_red_to_green"):
-        return "中軌突破回踩再啟動型"
+    # v5：🚀與🛩合併。只要符合「曾突破中軌 → 紫線回踩 → 最新轉黃」，
+    # 統一歸類為「中軌突破回踩轉黃型」；4H 紅轉綠只作為分數權重，不再拆成獨立型態。
+    if flags.get("breakout_pullback_yellow_restart"):
+        return "中軌突破回踩轉黃型"
+
     if flags.get("below_midline_po3_amd_candidate"):
         if flags.get("po3_amd_strong_reversal"):
             return "中軌下方 PO3/AMD 強反轉型"
-        if flags.get("prior_breakout_then_pullback_reclaim"):
-            return "中軌回落後杯柄反攻候選型"
-        if flags.get("po3_amd_w_bottom_candidate"):
-            return "中軌下方 PO3/AMD 反轉候選型"
         if flags.get("po3_amd_early_weak_rebound"):
             return "中軌下方 PO3/AMD 轉黃早期觀察型"
+        # v5：🏆杯柄候選不再獨立成型態；保留 prior_breakout_then_pullback_reclaim 作為內部分數加權。
         return "中軌下方 PO3/AMD 反轉候選型"
-    if flags.get("breakout_pullback_yellow_restart"):
-        return "中軌突破回踩轉黃型"
+
     if flags.get("latest_color") == "yellow" and flags.get("latest_near_midline"):
         return "中軌附近磨合轉黃型"
     if flags.get("latest_color") == "purple":
@@ -478,10 +477,11 @@ def _score_hint(flags: dict, item: dict) -> int:
     """
     給 GPT 的機械分數提示，不是最終交易建議。
 
-    v3 分層：
-    1. 最高分保留給「已突破中軌 → 回踩中軌附近 → 4H 紅轉綠」的 SOL 類確認型。
+    v5 分層：
+    1. 最高分保留給「曾突破中軌 → 回踩中軌附近 → 最新轉黃」的 SOL 類確認型。
+       其中 4H 前紅→4H 當綠給最高權重，但不再拆成獨立型態。
     2. 中軌下方的 XLM 類強反轉再強，也仍是「未確認過中軌壓力」；分數封頂，不給 100。
-    3. BOME 類曾經站上中軌、後續回落再反攻，優於 ARB 類從頭到尾沒碰中軌。
+    3. BOME 類曾經站上中軌、後續回落再反攻，歸入 PO3/AMD 反轉候選型，但內部分數高於 ARB 類從頭到尾沒碰中軌。
     4. 站上中軌但乖離過大視為追高，分數要被封頂。
     """
     score = 0
@@ -578,7 +578,7 @@ def _score_hint(flags: dict, item: dict) -> int:
 
     final_score = max(0, min(100, int(round(score))))
 
-    # 5) 最高分只給 SOL 類：已站上/突破過中軌，回踩接近中軌，4H 紅轉綠。
+    # 5) 最高分只給 SOL 類：中軌突破回踩轉黃；4H 紅轉綠 + 接近中軌才允許滿分。
     if flags.get("breakout_pullback_yellow_restart"):
         if flags.get("four_h_red_to_green") and near_midline_zone:
             final_score = 100
@@ -592,12 +592,12 @@ def _score_hint(flags: dict, item: dict) -> int:
     if flags.get("below_midline_po3_amd_candidate"):
         if flags.get("po3_amd_strong_reversal"):
             # 強反轉但未真正站上中軌：高分，但不給 100。
-            cap = 90 if flags.get("prior_breakout_then_pullback_reclaim") else 88
-            final_score = min(final_score, cap)
+            final_score = min(final_score, 88)
             final_score = max(final_score, 82)
         elif flags.get("prior_breakout_then_pullback_reclaim"):
+            # BOME 類：曾經稀釋過中軌上方空方區塊，仍歸入反轉候選，但分數高於 ARB 類。
             final_score = min(final_score, 86)
-            final_score = max(final_score, 78)
+            final_score = max(final_score, 76)
         elif flags.get("po3_amd_w_bottom_candidate"):
             final_score = min(final_score, 80)
         elif flags.get("po3_amd_early_weak_rebound"):
@@ -607,6 +607,20 @@ def _score_hint(flags: dict, item: dict) -> int:
 
         if flags.get("structurally_suppressed_never_touched_midline"):
             final_score = min(final_score, 74)
+
+    # v5 防呆二次封頂：只要 pattern 仍屬中軌下方 PO3/AMD，就絕不可顯示 100。
+    pattern_guard = _classify_pattern(flags)
+    if pattern_guard == "中軌下方 PO3/AMD 強反轉型":
+        final_score = min(final_score, 88)
+        final_score = max(final_score, 82)
+    elif pattern_guard == "中軌下方 PO3/AMD 反轉候選型":
+        if flags.get("prior_breakout_then_pullback_reclaim"):
+            final_score = min(final_score, 86)
+            final_score = max(final_score, 76)
+        else:
+            final_score = min(final_score, 80)
+    elif pattern_guard == "中軌下方 PO3/AMD 轉黃早期觀察型":
+        final_score = min(final_score, 55)
 
     # 7) 站上中軌但乖離太大，視為追高，不應比回踩中軌型高。
     if latest_pct is not None and latest_pct > 0:
@@ -645,9 +659,9 @@ def _records_from_plot_results(plot_results: Iterable[dict]) -> list[dict]:
         item["gpt_notes"] = [
             "ladder_history 是 index.html 圖上黃/紫階梯的文字化版本。",
             "color=yellow/🟡 代表平均K收盤上梯；color=purple/🟣 代表平均K收盤下梯。",
-            "判斷中軌突破回踩再啟動，請優先看 pattern_flags.breakout_pullback_yellow_restart 與 4H 前/當。",
+            "判斷中軌突破回踩轉黃型，請優先看 pattern_flags.breakout_pullback_yellow_restart；4H 前/當只作為分數權重。",
             "判斷 PO3/AMD 不只看 yellow_over_previous_purple_count；強反轉需同時看 po3_amd_quality_label、clean_fast_reclaim_run、recent_color_transitions_6d、rapid_reclaim_magnitude。",
-            "XLM 類屬 strong_fast_reclaim；SUI/ONDO 類黃紫混合後才過第3層屬 w_bottom_candidate；FIL 類單根小黃線屬 early_weak_rebound_wait_confirm。",
+            "XLM 類屬 strong_fast_reclaim 但分數封頂 88；SUI/ONDO/BOME 類歸入 w_bottom_candidate/反轉候選；FIL 類單根小黃線屬 early_weak_rebound_wait_confirm。",
         ]
         out.append(_to_plain(item))
     return out
@@ -734,12 +748,12 @@ def build_snapshot_payload(
         "snapshot_hash": data_hash,
         "count": len(df) if isinstance(df, pd.DataFrame) else 0,
         "note": "index.html is visual; snapshot.json and snapshot_pretty.txt are the machine-readable data sources for ChatGPT analysis.",
-        "analysis_schema_version": "crypto-monitor-ladder-v4",
+        "analysis_schema_version": "crypto-monitor-ladder-v5",
         "analysis_schema": {
             "midline_pct_axis": "0% = 日線 BB 中軌；pct_vs_midline = HA 收盤價相對當天日線中軌的百分比。",
             "ladder_history": "每個幣最近 20 根日線 HA 階梯；yellow/🟡 = 平均K收盤上梯，purple/🟣 = 平均K收盤下梯。",
             "main_patterns": [
-                "中軌突破回踩再啟動：先有黃線站上 0 軸，之後紫線回踩 0 軸附近，最新再轉黃線。",
+                "中軌突破回踩轉黃型：先有黃線站上 0 軸，之後紫線回踩 0 軸附近，最新再轉黃線；4H 前紅→4H 當綠只作為最高分觸發權重。",
                 "PO3/AMD 強反轉：仍在中軌下方時，最新黃線快速、大幅蓋過前面 2~3 層紫線，例如深紫區快速拉回近中軌。",
                 "PO3/AMD 反轉候選：中軌下方黃紫交錯、W底盤整、緩慢墊高，例如底部盤來盤去後朝前紫線第 2~3 層推進。",
                 "PO3/AMD 轉黃早期觀察：長紫線後只有 1 根小黃線，雖然略高於前紫線，但幅度太小，需等待下一日確認。",
