@@ -724,11 +724,18 @@ if results:
                 ha_closes = r.get("_ha_closes_last20", [])
                 ha_times = r.get("_ha_times_last20", [])
 
-                # 標題：加入 get.py 解析出的型態與機械分數
+                # 標題第 1 行：只放即時狀態，避免圖卡標題過長
                 pattern_label = r.get("_pattern_type_hint", "一般觀察型")
                 score_label = r.get("_machine_score_hint_0_100", 0)
                 st.markdown(
-                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}　|　型態：{pattern_label}　|　分數：{score_label}/100"
+                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}"
+                )
+                # 標題第 2 行：型態與機械分數獨立顯示
+                st.markdown(
+                    f"<div style='font-size:13px;color:#cbd5e1;margin-top:-8px;margin-bottom:6px;'>"
+                    f"型態：{pattern_label}　|　分數：{score_label}/100"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
 
                 # 建立 20期走勢圖
