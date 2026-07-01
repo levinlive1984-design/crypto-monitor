@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
-from get import write_index_html, sync_index_to_github
+from get import write_index_html, sync_index_to_github, write_summary_txt
 
 # ==================== 0. matplotlib 中文字型設定 ====================
 # 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
@@ -699,6 +699,38 @@ if results:
             unsafe_allow_html=True,
         )
 
+    def _render_runtime_latest_signals_download() -> None:
+        """直接下載本次 Streamlit runtime 生成的 latest_signals.txt，不依賴 GitHub Pages 是否完成刷新。"""
+        try:
+            summary_path = write_summary_txt(
+                df=df,
+                plot_results=static_plot_results,
+                selection=selection,
+                sort_option=sort_option,
+                output_dir="docs",
+                title="HA Crypto Terminal",
+            )
+            latest_text = summary_path.read_text(encoding="utf-8")
+            st.markdown(
+                """
+                <div style="margin:6px 0 10px 0;padding:7px 9px;border:1px solid rgba(59,130,246,.35);border-radius:9px;background:rgba(15,23,42,.72);">
+                    <div style="color:#cbd5e1;font-weight:700;margin-bottom:5px;font-size:11px;">⬇️ 當下資料直接下載</div>
+                    <div style="color:#94a3b8;font-size:10px;margin-bottom:6px;">這份檔案由目前 Streamlit 畫面即時產生，不等待 GitHub Pages / docs 資料夾刷新。</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.download_button(
+                label="⬇️ 下載當下 latest_signals.txt",
+                data=latest_text,
+                file_name="latest_signals.txt",
+                mime="text/plain",
+                key=f"download_latest_signals_{len(latest_text)}",
+                help="下載本次 Streamlit runtime 產生的 GPT_READABLE_CRYPTO_MONITOR_REPORT。",
+            )
+        except Exception as exc:
+            st.warning(f"⚠️ latest_signals.txt 下載檔產生失敗：{exc}")
+
     sync_messages = []
     try:
         # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
@@ -739,6 +771,9 @@ if results:
 
     except Exception as exc:
         st.warning(f"⚠️ 靜態頁 / GitHub Pages 同步失敗：{exc}")
+
+    # 無論 GitHub Pages 是否成功回寫，都提供「當下 runtime」產生的 latest_signals.txt 下載。
+    _render_runtime_latest_signals_download()
 
     n_cols = 2 if len(plot_results) > 4 else 3
     chart_cols = st.columns(n_cols)
