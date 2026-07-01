@@ -1239,3 +1239,287 @@ def sync_index_to_github(
         "branch": branch,
         "commit_sha": index_result.get("commit_sha") or snapshot_result.get("commit_sha") or ai_snapshot_result.get("commit_sha") or summary_result.get("commit_sha"),
     }
+
+
+# ==================== 評分系統 v3.1 微調覆蓋 ====================
+# 目的：
+# 1) 中軌下方即使最近 20 天未突破中軌，只要紫黃交替、低點墊高、接近中軌，應高於「紫紫紫持續下梯」。
+# 2) 中軌上方若已突破過、回踩轉紫但未跌破中軌，且 4H 紅→綠，應視為「強勢整理等待再轉黃」，分數上修但仍低於最新黃線確認。
+
+
+def _recent_color_stats(history: list[dict], lookback: int = 8) -> dict:
+    tail = history[-lookback:] if history else []
+    colors = [h.get("color") for h in tail if h.get("color") in ["yellow", "purple"]]
+    pcts = [_safe_float(h.get("pct_vs_midline")) for h in tail]
+    pcts = [p for p in pcts if p is not None]
+    switches = sum(1 for a, b in zip(colors, colors[1:]) if a != b)
+    yellow_count = sum(1 for c in colors if c == "yellow")
+    purple_count = sum(1 for c in colors if c == "purple")
+    latest_pct = _safe_float(history[-1].get("pct_vs_midline")) if history else None
+    recent_low = min(pcts) if pcts else None
+    recent_high = max(pcts) if pcts else None
+    repair_from_low = None
+    if latest_pct is not None and recent_low is not None:
+        repair_from_low = latest_pct - recent_low
+    return {
+        "lookback": lookback,
+        "color_switch_count": switches,
+        "yellow_count": yellow_count,
+        "purple_count": purple_count,
+        "recent_low_pct": recent_low,
+        "recent_high_pct": recent_high,
+        "repair_from_recent_low_pct": repair_from_low,
+    }
+
+
+def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
+    """v3.1：加入「中軌下方紫黃修復」與「中軌上方紫線強勢整理」辨識。"""
+    latest = history[-1] if history else {}
+    run = _current_color_run(history)
+    run_start = run.get("start_index")
+    latest_pct = latest.get("pct_vs_midline")
+    latest_color = latest.get("color", "unknown")
+
+    previous_items = history[:run_start] if isinstance(run_start, int) else history[:-1]
+    previous_purples_reversed = [h for h in reversed(previous_items) if h.get("color") == "purple"]
+    previous_purple_pcts = [h.get("pct_vs_midline") for h in previous_purples_reversed if h.get("pct_vs_midline") is not None]
+    yellow_ref = history[run_start] if isinstance(run_start, int) and 0 <= run_start < len(history) else latest
+    yellow_ref_pct = yellow_ref.get("pct_vs_midline")
+
+    def _count_yellow_over_prev_purples(ref_pct: Any, n: int = 3) -> int:
+        ref = _safe_float(ref_pct)
+        if ref is None:
+            return 0
+        return sum(1 for p in previous_purple_pcts[:n] if p is not None and ref > p)
+
+    yellow_over_count_from_run_start = _count_yellow_over_prev_purples(yellow_ref_pct, 3)
+    yellow_over_count_latest = _count_yellow_over_prev_purples(latest_pct, 3)
+    yellow_over_count = max(yellow_over_count_from_run_start, yellow_over_count_latest)
+
+    breakout_indices = [
+        i for i, h in enumerate(history)
+        if h.get("color") == "yellow" and h.get("pct_vs_midline") is not None and h["pct_vs_midline"] >= 0
+    ]
+    breakout_before_current_run = [i for i in breakout_indices if not isinstance(run_start, int) or i < run_start]
+    last_breakout_idx = breakout_before_current_run[-1] if breakout_before_current_run else None
+
+    pullback_items = []
+    if isinstance(last_breakout_idx, int) and isinstance(run_start, int):
+        pullback_items = history[last_breakout_idx + 1:run_start]
+
+    purple_pullback_near_midline = any(
+        h.get("color") == "purple"
+        and h.get("pct_vs_midline") is not None
+        and -4.0 <= h["pct_vs_midline"] <= 3.0
+        for h in pullback_items
+    )
+    purple_pullback_not_deep_broken = True
+    if pullback_items:
+        pcts = [h["pct_vs_midline"] for h in pullback_items if h.get("pct_vs_midline") is not None]
+        purple_pullback_not_deep_broken = bool(pcts and min(pcts) >= -6.0)
+
+    four_h_red_to_green = (r.get("4H前") == "🔴" and r.get("4H當") == "🟢")
+    four_h_green_green = (r.get("4H前") == "🟢" and r.get("4H當") == "🟢")
+    four_h_green_to_red = (r.get("4H前") == "🟢" and r.get("4H當") == "🔴")
+
+    breakout_pullback_restart = bool(
+        latest_color == "yellow"
+        and bool(breakout_before_current_run)
+        and purple_pullback_near_midline
+        and purple_pullback_not_deep_broken
+    )
+
+    po3_amd_yellow_over_2 = bool(latest_color == "yellow" and yellow_over_count >= 2)
+    po3_amd_yellow_over_3 = bool(latest_color == "yellow" and yellow_over_count >= 3)
+    below_midline_po3_amd = bool(
+        latest_color == "yellow"
+        and latest_pct is not None
+        and latest_pct < 0
+        and yellow_over_count >= 2
+    )
+
+    stats = _recent_color_stats(history, lookback=8)
+    had_any_midline_breakout = any(
+        h.get("pct_vs_midline") is not None and h["pct_vs_midline"] >= 0
+        for h in history
+    )
+    current_run_pcts = []
+    if isinstance(run_start, int):
+        current_run_pcts = [h.get("pct_vs_midline") for h in history[run_start:] if h.get("pct_vs_midline") is not None]
+
+    # 中軌下方：未突破過中軌，但紫黃交替、低點墊高、正在靠近中軌。
+    below_midline_yellow_purple_repair = bool(
+        latest_pct is not None
+        and latest_pct < 0
+        and latest_pct >= -5.5
+        and not had_any_midline_breakout
+        and stats.get("color_switch_count", 0) >= 2
+        and stats.get("yellow_count", 0) >= 2
+        and (stats.get("repair_from_recent_low_pct") is not None and stats["repair_from_recent_low_pct"] >= 2.0)
+    )
+    below_midline_repair_near_breakout = bool(
+        below_midline_yellow_purple_repair
+        and latest_pct is not None
+        and latest_pct >= -3.0
+    )
+
+    # 中軌上方：突破後回踩轉紫，但紫線仍守在 0 軸上方或接近 0 軸，屬強勢整理。
+    above_midline_purple_pullback_hold = bool(
+        latest_color == "purple"
+        and bool(breakout_before_current_run or had_any_midline_breakout)
+        and latest_pct is not None
+        and -1.0 <= latest_pct <= 5.5
+        and (not current_run_pcts or min(current_run_pcts) >= -1.5)
+    )
+    above_midline_purple_pullback_with_4h_trigger = bool(
+        above_midline_purple_pullback_hold and four_h_red_to_green
+    )
+
+    purple_continuation_weak = bool(
+        latest_color == "purple"
+        and run.get("length", 0) >= 3
+        and stats.get("repair_from_recent_low_pct") is not None
+        and stats["repair_from_recent_low_pct"] < 1.0
+    )
+
+    return {
+        "analysis_ready": bool(len(history) >= 10 and latest_color in ["yellow", "purple", "flat"]),
+        "latest_color": latest_color,
+        "latest_color_emoji": _ha_step_emoji(latest_color),
+        "latest_pct_vs_midline": latest_pct,
+        "latest_above_midline": bool(latest_pct is not None and latest_pct >= 0),
+        "latest_near_midline": bool(latest_pct is not None and abs(latest_pct) <= 3.0),
+        "current_color_run": run,
+        "recent_color_stats": stats,
+        "had_any_midline_breakout_in_lookback": bool(had_any_midline_breakout),
+        "had_yellow_above_midline_before_current_run": bool(breakout_before_current_run),
+        "purple_pullback_near_midline_after_breakout": bool(purple_pullback_near_midline),
+        "purple_pullback_not_deep_broken": bool(purple_pullback_not_deep_broken),
+        "breakout_pullback_yellow_restart": breakout_pullback_restart,
+        "below_midline_yellow_purple_repair": below_midline_yellow_purple_repair,
+        "below_midline_repair_near_breakout": below_midline_repair_near_breakout,
+        "above_midline_purple_pullback_hold": above_midline_purple_pullback_hold,
+        "above_midline_purple_pullback_with_4h_trigger": above_midline_purple_pullback_with_4h_trigger,
+        "purple_continuation_weak": purple_continuation_weak,
+        "previous_purple_pcts_for_po3": previous_purple_pcts[:3],
+        "yellow_ref_pct_for_po3": yellow_ref_pct,
+        "yellow_over_previous_purple_count": int(yellow_over_count),
+        "yellow_over_2_previous_purple_steps": po3_amd_yellow_over_2,
+        "yellow_over_3_previous_purple_steps": po3_amd_yellow_over_3,
+        "below_midline_po3_amd_candidate": below_midline_po3_amd,
+        "four_h_red_to_green": four_h_red_to_green,
+        "four_h_green_green": four_h_green_green,
+        "four_h_green_to_red": four_h_green_to_red,
+        "four_h_trigger_label": "4H前紅→4H當綠：最佳啟動" if four_h_red_to_green else ("4H綠→綠：偏多延續" if four_h_green_green else ("4H綠→紅：短線轉弱" if four_h_green_to_red else "4H未啟動或偏弱")),
+    }
+
+
+def _classify_pattern(flags: dict) -> str:
+    if flags.get("breakout_pullback_yellow_restart") and flags.get("four_h_red_to_green"):
+        return "中軌突破回踩再啟動型"
+    if flags.get("breakout_pullback_yellow_restart"):
+        return "中軌突破回踩轉黃型"
+    if flags.get("above_midline_purple_pullback_with_4h_trigger"):
+        return "中軌上方紫線強勢整理型（等待轉黃）"
+    if flags.get("above_midline_purple_pullback_hold"):
+        return "中軌上方紫線整理型"
+    if flags.get("below_midline_po3_amd_candidate") and flags.get("yellow_over_3_previous_purple_steps"):
+        return "中軌下方 PO3/AMD 強反轉型"
+    if flags.get("below_midline_po3_amd_candidate"):
+        return "中軌下方 PO3/AMD 反轉候選型"
+    if flags.get("below_midline_repair_near_breakout"):
+        return "中軌下方紫黃修復近中軌型"
+    if flags.get("below_midline_yellow_purple_repair"):
+        return "中軌下方紫黃修復觀察型"
+    if flags.get("latest_color") == "yellow" and flags.get("latest_near_midline"):
+        return "中軌附近磨合轉黃型"
+    if flags.get("latest_color") == "purple":
+        return "紫線未轉黃觀察型"
+    return "一般觀察型"
+
+
+def _score_hint(flags: dict, item: dict) -> int:
+    """
+    v3.1 機械分數提示：
+    - 最新黃線仍是正式確認。
+    - 但中軌下方紫黃修復、以及中軌上方紫線守 0 軸 + 4H 紅轉綠，會給更合理的預備分。
+    - 紫線型可上修，但除非重新轉黃，原則上不給 90+。
+    """
+    score = 0
+    latest_color = flags.get("latest_color")
+    four_h_red_to_green = flags.get("four_h_red_to_green")
+    four_h_green_green = flags.get("four_h_green_green")
+    four_h_green_to_red = flags.get("four_h_green_to_red") or (item.get("4H前") == "🟢" and item.get("4H當") == "🔴")
+
+    # 1) 日線結構基礎分
+    if flags.get("breakout_pullback_yellow_restart"):
+        score += 45
+    elif flags.get("above_midline_purple_pullback_hold"):
+        score += 42
+    elif flags.get("below_midline_repair_near_breakout") and latest_color == "yellow":
+        score += 34
+    elif flags.get("below_midline_yellow_purple_repair") and latest_color == "yellow":
+        score += 29
+    elif flags.get("below_midline_yellow_purple_repair"):
+        score += 22
+    elif flags.get("had_yellow_above_midline_before_current_run") and latest_color == "yellow":
+        score += 30
+    elif latest_color == "yellow":
+        score += 22
+    elif latest_color == "purple":
+        score += 6
+
+    # 2) PO3 / AMD 黃線蓋過紫線
+    over_count = int(flags.get("yellow_over_previous_purple_count") or 0)
+    if flags.get("below_midline_po3_amd_candidate"):
+        score += 28 + min(over_count, 3) * 4
+    elif over_count >= 2 and latest_color == "yellow":
+        score += 18 + min(over_count, 3) * 3
+
+    # 3) 4H 觸發
+    if four_h_red_to_green:
+        score += 20
+    elif four_h_green_green:
+        score += 14
+    elif four_h_green_to_red:
+        score -= 8
+    elif item.get("4H當") == "🔴":
+        score += 2
+
+    # 4) 位置修正
+    latest_pct = _safe_float(flags.get("latest_pct_vs_midline"))
+    if latest_pct is not None:
+        if -2.5 <= latest_pct <= 5.0:
+            score += 10
+        elif -5.5 <= latest_pct < -2.5:
+            score += 5
+        elif 5.0 < latest_pct <= 8.0:
+            score += 2
+        elif latest_pct > 8.0:
+            score -= 12
+        elif latest_pct < -12.0:
+            score -= 10
+
+    # 5) 型態封頂：避免「尚未轉黃」或「未站上中軌」被誤拉到核心候選。
+    if latest_color == "purple":
+        if flags.get("above_midline_purple_pullback_with_4h_trigger"):
+            score = min(score, 82)
+        elif flags.get("above_midline_purple_pullback_hold"):
+            score = min(score, 74)
+        else:
+            score = min(score, 59)
+
+    if flags.get("below_midline_yellow_purple_repair") and not flags.get("had_any_midline_breakout_in_lookback"):
+        if latest_color == "yellow" and four_h_red_to_green and flags.get("below_midline_repair_near_breakout"):
+            score = min(score, 84)
+        elif latest_color == "yellow" and flags.get("below_midline_repair_near_breakout"):
+            score = min(score, 78)
+        elif latest_color == "yellow":
+            score = min(score, 74)
+        else:
+            score = min(score, 66)
+
+    if flags.get("purple_continuation_weak"):
+        score = min(score, 55)
+
+    return max(0, min(100, int(round(score))))
