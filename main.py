@@ -2,7 +2,6 @@ import requests
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 import time
 import html
 import matplotlib.pyplot as plt
@@ -700,46 +699,9 @@ if results:
             unsafe_allow_html=True,
         )
 
-    def _render_runtime_downloads() -> None:
-        """提供 Streamlit 當下 runtime 直接下載，不經 GitHub Pages / docs 快取。"""
-        files = [
-            ("snapshot_pretty.txt｜當下 AI 快讀檔", Path("docs/snapshot_pretty.txt"), "snapshot_pretty.txt", "text/plain"),
-            ("snapshot.json｜當下完整 JSON", Path("docs/snapshot.json"), "snapshot.json", "application/json"),
-            ("latest_signals.txt｜當下文字摘要", Path("docs/latest_signals.txt"), "latest_signals.txt", "text/plain"),
-        ]
-        available = [(label, path, filename, mime) for label, path, filename, mime in files if path.exists()]
-        if not available:
-            return
-
-        st.markdown(
-            """
-            <div style="margin:6px 0 10px 0;padding:7px 9px;border:1px solid rgba(255,235,59,.45);border-radius:9px;background:rgba(15,23,42,.72);">
-                <div style="color:#FFEB3B;font-weight:700;margin-bottom:4px;font-size:11px;">📥 Streamlit 當下快照下載</div>
-                <div style="color:#cbd5e1;font-size:10px;line-height:1.45;">
-                    這裡下載的是本次瀏覽器跑完整流程後，Streamlit runtime 剛產生的檔案；不經 GitHub Pages，不受 docs/snapshot_pretty.txt 快取影響。
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        cols = st.columns(len(available))
-        for col, (label, path, filename, mime) in zip(cols, available):
-            col.download_button(
-                label=f"📥 {label}",
-                data=path.read_bytes(),
-                file_name=filename,
-                mime=mime,
-                use_container_width=True,
-                key=f"runtime_download_{filename}",
-            )
-
     sync_messages = []
-    index_path = None
-
-    # 先產生 Streamlit runtime 本機快照，並立刻提供下載。
-    # 這一段不依賴 GitHub API，所以即使 GitHub Pages 卡快取，也可以直接下載最新 snapshot_pretty.txt。
     try:
+        # 先在 Streamlit runtime 產生本機暫存版 docs/index.html。
         index_path = write_index_html(
             df=df,
             plot_results=static_plot_results,
@@ -748,14 +710,10 @@ if results:
             output_dir="docs",
             title="HA Crypto Terminal",
         )
-        sync_messages.append(("📄", f"已產生 Streamlit 當下暫存快照：{index_path}"))
-        _render_runtime_downloads()
-    except Exception as exc:
-        st.warning(f"⚠️ Streamlit 當下快照產生失敗：{exc}")
+        sync_messages.append(("📄", f"已產生暫存靜態頁：{index_path}"))
 
-    # GitHub Pages 回寫改成次要流程：失敗或快取不影響上方直接下載。
-    try:
-        if index_path is not None and auto_sync_github_pages and github_token:
+        # Streamlit Cloud 的 docs/index.html 不會自己回寫 GitHub；這段會透過 GitHub API commit 回 repo。
+        if auto_sync_github_pages and github_token:
             sync_result = sync_index_to_github(
                 df=df,
                 plot_results=static_plot_results,
@@ -773,13 +731,14 @@ if results:
             else:
                 sync_messages.append(("🚀", f"已回寫 GitHub Pages：{github_pages_path}｜commit {str(sync_result.get('commit_sha', ''))[:8]}"))
         elif not github_token:
-            sync_messages.append(("⚠️", "尚未設定 GITHUB_TOKEN；上方可直接下載 Streamlit 當下快照，GitHub Pages 不一定更新。"))
-    except Exception as exc:
-        sync_messages.append(("⚠️", f"GitHub Pages 回寫失敗，但上方 Streamlit 當下快照仍可下載：{exc}"))
+            sync_messages.append(("⚠️", "尚未設定 GITHUB_TOKEN，所以只產生 Streamlit 暫存 index.html，尚未回寫 GitHub Pages。"))
 
-    # 狀態收進可展開小頁籤；GitHub Pages 連結仍保留，但不再作為唯一資料來源。
-    _render_sync_status(sync_messages, default_open=False)
-    _render_pages_links(github_repo)
+        # 狀態收進可展開小頁籤；連結維持直接顯示，但縮小。
+        _render_sync_status(sync_messages, default_open=False)
+        _render_pages_links(github_repo)
+
+    except Exception as exc:
+        st.warning(f"⚠️ 靜態頁 / GitHub Pages 同步失敗：{exc}")
 
     n_cols = 2 if len(plot_results) > 4 else 3
     chart_cols = st.columns(n_cols)
