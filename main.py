@@ -606,41 +606,120 @@ if results:
     st.markdown("---")
     st.markdown("### 📈 最近 20 根 HA 收盤價 vs BB中軌 % 偏差走勢圖")
 
-    # --- 圖表排序選單 ---
+    # --- 先用 get.py 的 snapshot builder 產生型態/機械分數，給 Streamlit 前端選單使用 ---
+    # 注意：這裡只組記憶體 payload，不寫 docs、不寫 GitHub、不產生任何遠端同步。
+    ui_payload = build_snapshot_payload(
+        df=df,
+        plot_results=results,
+        selection=selection,
+        sort_option="ui_pattern_filter",
+        title="HA Crypto Terminal",
+    )
+    ui_meta_by_symbol = {
+        (item.get("symbol") or item.get("幣種")): item
+        for item in ui_payload.get("charts", [])
+        if item.get("symbol") or item.get("幣種")
+    }
+
+    def _annotate_chart_items(items):
+        """把 get.py 解析出的 pattern_type_hint / machine_score_hint 掛回每張圖表資料。"""
+        annotated = []
+        for r in list(items):
+            item = dict(r)
+            meta = ui_meta_by_symbol.get(item.get("幣種"), {})
+            flags = meta.get("pattern_flags") or {}
+            item["_pattern_type_hint"] = meta.get("pattern_type_hint", "一般觀察型")
+            item["_machine_score_hint_0_100"] = int(meta.get("machine_score_hint_0_100") or 0)
+            item["_pattern_flags"] = flags
+            item["_yellow_over_previous_purple_count"] = int(flags.get("yellow_over_previous_purple_count") or 0)
+            item["_four_h_trigger_label"] = flags.get("four_h_trigger_label", "—")
+            annotated.append(item)
+        return annotated
+
+    # 畫面顯示可以被「選幣」過濾；但輸出給 GPT 的 snapshot 必須永遠包含完整 results。
+    annotated_chart_results = _annotate_chart_items(chart_results)
+    annotated_all_results = _annotate_chart_items(results)
+
+    # --- 圖表排序 / 型態過濾選單 ---
     sort_option = st.selectbox(
-        "圖表排序方式",
+        "圖表排序 / 型態過濾方式",
         options=[
             "依目前的日K收盤價 > 開盤價排序（預設多頭優先）",
             "依「距離中軌%」距離近的排序（中軌距離）",
+            "依機械分數高到低排序",
+            "型態：高分候選 ≥ 60",
+            "型態：中軌突破回踩再啟動型",
+            "型態：中軌下方 PO3/AMD 強反轉型",
+            "型態：中軌下方 PO3/AMD 反轉候選型",
+            "型態：中軌突破回踩轉黃型",
+            "型態：中軌附近磨合轉黃型",
+            "型態：4H 前紅 → 4H 當綠",
+            "型態：紫線未轉黃觀察型",
             "依目前的日K收盤價 < 開盤價排序（空頭優先）",
-            "依幣種英文字母順序排序"
+            "依幣種英文字母順序排序",
         ],
-        index=0
+        index=0,
     )
+
+    def _score(item):
+        return int(item.get("_machine_score_hint_0_100") or 0)
+
+    def _pattern(item):
+        return str(item.get("_pattern_type_hint") or "一般觀察型")
+
+    def _flags(item):
+        return item.get("_pattern_flags") or {}
+
+    def _filter_chart_items(items):
+        if sort_option == "型態：高分候選 ≥ 60":
+            return [x for x in items if _score(x) >= 60]
+        if sort_option == "型態：中軌突破回踩再啟動型":
+            return [x for x in items if _pattern(x) == "中軌突破回踩再啟動型"]
+        if sort_option == "型態：中軌下方 PO3/AMD 強反轉型":
+            return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 強反轉型"]
+        if sort_option == "型態：中軌下方 PO3/AMD 反轉候選型":
+            return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 反轉候選型"]
+        if sort_option == "型態：中軌突破回踩轉黃型":
+            return [x for x in items if _pattern(x) == "中軌突破回踩轉黃型"]
+        if sort_option == "型態：中軌附近磨合轉黃型":
+            return [x for x in items if _pattern(x) == "中軌附近磨合轉黃型"]
+        if sort_option == "型態：4H 前紅 → 4H 當綠":
+            return [x for x in items if _flags(x).get("four_h_red_to_green")]
+        if sort_option == "型態：紫線未轉黃觀察型":
+            return [x for x in items if _pattern(x) == "紫線未轉黃觀察型"]
+        return list(items)
 
     # 根據選擇的排序方式處理圖表列表
     def _sort_chart_items(items):
+        items = list(items)
         if sort_option == "依目前的日K收盤價 > 開盤價排序（預設多頭優先）":
             return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
-        elif sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
-            return sorted(items, key=lambda x: x["_abs_dev"])
-        elif sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
+        if sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
+            return sorted(items, key=lambda x: x.get("_abs_dev", 999))
+        if sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
             return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
-        else:  # 依幣種英文字母順序排序
-            return sorted(items, key=lambda x: x["幣種"])
+        if sort_option == "依幣種英文字母順序排序":
+            return sorted(items, key=lambda x: x.get("幣種", ""))
+        # 型態過濾與機械分數選項，一律用分數高到低排列。
+        return sorted(items, key=lambda x: (-_score(x), x.get("幣種", "")))
 
-    # 畫面顯示可以被「選幣」過濾；但輸出給 GPT 的 snapshot 必須永遠包含完整 results。
-    sorted_chart_results = _sort_chart_items(chart_results)
-    static_plot_results = _sort_chart_items(results)
+    filtered_chart_results = _filter_chart_items(annotated_chart_results)
+    sorted_chart_results = _sort_chart_items(filtered_chart_results)
 
-    # 直接顯示所有圖表（已移除 checkbox）
+    # snapshot 仍使用全部幣種，避免下載檔被畫面篩選影響。
+    static_plot_results = _sort_chart_items(annotated_all_results)
+
     plot_results = sorted_chart_results
+    st.caption(f"目前顯示 {len(plot_results)} / {len(annotated_chart_results)} 張圖；下載的 snapshot_pretty.txt 仍包含完整 {len(annotated_all_results)} 個幣種。")
+
+    if len(plot_results) == 0:
+        st.warning("目前沒有符合這個型態條件的幣種。請切換其他型態或恢復一般排序。")
 
     # 不再寫入任何 docs 靜態檔，也不再做任何遠端同步。
     # 只在 Streamlit 當下 runtime 組出 snapshot_pretty 文字，等下方圖表全部畫完後提供右上角下載。
 
     n_cols = 2 if len(plot_results) > 4 else 3
-    chart_cols = st.columns(n_cols)
+    chart_cols = st.columns(n_cols) if plot_results else []
 
     for idx, r in enumerate(plot_results):
         with chart_cols[idx % n_cols]:
@@ -651,9 +730,11 @@ if results:
                 ha_closes = r.get("_ha_closes_last20", [])
                 ha_times = r.get("_ha_times_last20", [])
 
-                # 標題
+                # 標題：加入 get.py 解析出的型態與機械分數
+                pattern_label = r.get("_pattern_type_hint", "一般觀察型")
+                score_label = r.get("_machine_score_hint_0_100", 0)
                 st.markdown(
-                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}"
+                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}　|　型態：{pattern_label}　|　分數：{score_label}/100"
                 )
 
                 # 建立 20期走勢圖
