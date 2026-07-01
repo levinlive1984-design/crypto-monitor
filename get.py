@@ -272,6 +272,21 @@ def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
     breakout_before_current_run = [i for i in breakout_indices if not isinstance(run_start, int) or i < run_start]
     last_breakout_idx = breakout_before_current_run[-1] if breakout_before_current_run else None
 
+    # 「曾經站上中軌」是結構強弱分水嶺：
+    # BOME 類：前面曾黃線站上/穿越中軌，後面摔回中軌下方，再重新蓋過紫線，偏杯柄反攻候選。
+    # ARB 類：最近 20 根從頭到尾沒摸過中軌，代表一直被中軌壓制，反轉分數需要降權。
+    any_above_indices = [
+        i for i, h in enumerate(history)
+        if h.get("pct_vs_midline") is not None and h["pct_vs_midline"] >= 0
+    ]
+    above_before_current_run = [i for i in any_above_indices if not isinstance(run_start, int) or i < run_start]
+    had_any_above_midline_before_current_run = bool(above_before_current_run)
+    last_above_idx = above_before_current_run[-1] if above_before_current_run else None
+    bars_since_last_above_midline = (len(history) - 1 - last_above_idx) if isinstance(last_above_idx, int) else None
+    recent_above_midline_before_current_run = bool(
+        bars_since_last_above_midline is not None and bars_since_last_above_midline <= 12
+    )
+
     pullback_items = []
     if isinstance(last_breakout_idx, int) and isinstance(run_start, int):
         pullback_items = history[last_breakout_idx + 1:run_start]
@@ -306,25 +321,65 @@ def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
         and yellow_over_count >= 2
     )
 
-    # 人眼版「強反轉」：不是只算有沒有蓋過 3 層，而是看蓋過的幅度與速度。
-    # XLM 類：從深紫區快速拉回近中軌，reclaim_margin 通常很大。
+    prior_breakout_then_pullback_reclaim = bool(
+        below_midline_po3_amd
+        and bool(breakout_before_current_run)
+        and recent_above_midline_before_current_run
+        and latest_num is not None
+        and latest_num >= -6.5
+        and yellow_over_count >= 2
+        # 排除 FIL 類單根小黃：曾經上過中軌不代表現在就穩，還要有連續黃線或足夠 reclaim 幅度。
+        and run_length >= 2
+        and (avg_reclaim_margin_vs_prev3 is not None and avg_reclaim_margin_vs_prev3 >= 1.5)
+        and (rebound_from_recent_purple_low_pct is not None and rebound_from_recent_purple_low_pct >= 2.0)
+    )
+    structurally_suppressed_never_touched_midline = bool(
+        below_midline_po3_amd
+        and not had_any_above_midline_before_current_run
+    )
+
+    # 人眼版「強反轉 v3」：不是只算有沒有蓋過 3 層，而是看「速度 + 乾淨度 + 幅度」。
+    # XLM 類：最新黃線在 1~2 根內乾淨拉升，中途沒有黃紫黃反覆，直接蓋過前 3 層紫線。
+    # SUI 類：雖然最後也蓋到第 3 層，但途中有黃紫黃/紫黃紫混合，屬於盤整式反轉候選。
+    recent_tail_6 = history[-6:]
+    recent_color_transitions_6d = _color_transitions(recent_tail_6)
+    recent_tail_5 = history[-5:]
+    recent_color_transitions_5d = _color_transitions(recent_tail_5)
+
+    clean_fast_reclaim_run = bool(
+        latest_color == "yellow"
+        and 1 <= run_length <= 2
+        and recent_color_transitions_6d <= 1
+    )
+
+    interrupted_reclaim_by_color_mix = bool(
+        latest_color == "yellow"
+        and yellow_over_count >= 3
+        and recent_color_transitions_6d >= 2
+    )
+
+    rapid_reclaim_magnitude = bool(
+        (lift_from_previous_step_pct is not None and lift_from_previous_step_pct >= 4.0)
+        or (rebound_from_recent_purple_low_pct is not None and rebound_from_recent_purple_low_pct >= 6.0)
+        or (avg_reclaim_margin_vs_prev3 is not None and avg_reclaim_margin_vs_prev3 >= 4.5)
+    )
+
     po3_amd_strong_reversal = bool(
         below_midline_po3_amd
         and yellow_over_count >= 3
-        and (
-            (avg_reclaim_margin_vs_prev3 is not None and avg_reclaim_margin_vs_prev3 >= 4.0)
-            or (rebound_from_recent_purple_low_pct is not None and rebound_from_recent_purple_low_pct >= 6.0)
-            or (lift_from_previous_step_pct is not None and lift_from_previous_step_pct >= 4.0)
-        )
+        and clean_fast_reclaim_run
+        and rapid_reclaim_magnitude
         and (latest_num is not None and latest_num >= -4.0)
     )
 
-    # ONDO 類：黃紫交錯、底部盤整、緩慢墊高。可以進候選，但不應該貼「強反轉」。
+    # ONDO / SUI 類：黃紫交錯、底部盤整、緩慢墊高。可以進候選，但不應該貼「強反轉」。
     po3_amd_w_bottom_candidate = bool(
         below_midline_po3_amd
         and not po3_amd_strong_reversal
         and (
-            recent_color_transitions >= 3
+            interrupted_reclaim_by_color_mix
+            or recent_color_transitions >= 3
+            or recent_color_transitions_6d >= 2
             or (avg_reclaim_margin_vs_prev3 is not None and avg_reclaim_margin_vs_prev3 >= 1.5)
             or four_h_red_to_green
         )
@@ -360,6 +415,11 @@ def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
         "latest_near_midline": bool(latest_num is not None and abs(latest_num) <= 3.0),
         "current_color_run": run,
         "had_yellow_above_midline_before_current_run": bool(breakout_before_current_run),
+        "had_any_above_midline_before_current_run": bool(had_any_above_midline_before_current_run),
+        "recent_above_midline_before_current_run": bool(recent_above_midline_before_current_run),
+        "bars_since_last_above_midline": int(bars_since_last_above_midline) if bars_since_last_above_midline is not None else None,
+        "prior_breakout_then_pullback_reclaim": bool(prior_breakout_then_pullback_reclaim),
+        "structurally_suppressed_never_touched_midline": bool(structurally_suppressed_never_touched_midline),
         "purple_pullback_near_midline_after_breakout": bool(purple_pullback_near_midline),
         "purple_pullback_not_deep_broken": bool(purple_pullback_not_deep_broken),
         "breakout_pullback_yellow_restart": breakout_pullback_restart,
@@ -374,6 +434,12 @@ def _build_pattern_flags(r: dict, history: list[dict]) -> dict:
         "po3_amd_w_bottom_candidate": po3_amd_w_bottom_candidate,
         "po3_amd_early_weak_rebound": po3_amd_early_weak_rebound,
         "recent_color_transitions_8d": int(recent_color_transitions),
+        "recent_color_transitions_6d": int(recent_color_transitions_6d),
+        "recent_color_transitions_5d": int(recent_color_transitions_5d),
+        "clean_fast_reclaim_run": bool(clean_fast_reclaim_run),
+        "interrupted_reclaim_by_color_mix": bool(interrupted_reclaim_by_color_mix),
+        "rapid_reclaim_magnitude": bool(rapid_reclaim_magnitude),
+        "strong_reclaim_run_length_days": int(run_length),
         "recent_yellow_count_8d": int(recent_yellow_count),
         "recent_purple_count_8d": int(recent_purple_count),
         "lift_from_previous_step_pct": round(lift_from_previous_step_pct, 6) if lift_from_previous_step_pct is not None else None,
@@ -393,6 +459,8 @@ def _classify_pattern(flags: dict) -> str:
     if flags.get("below_midline_po3_amd_candidate"):
         if flags.get("po3_amd_strong_reversal"):
             return "中軌下方 PO3/AMD 強反轉型"
+        if flags.get("prior_breakout_then_pullback_reclaim"):
+            return "中軌回落後杯柄反攻候選型"
         if flags.get("po3_amd_w_bottom_candidate"):
             return "中軌下方 PO3/AMD 反轉候選型"
         if flags.get("po3_amd_early_weak_rebound"):
@@ -409,79 +477,147 @@ def _classify_pattern(flags: dict) -> str:
 def _score_hint(flags: dict, item: dict) -> int:
     """
     給 GPT 的機械分數提示，不是最終交易建議。
-    核心修正：
-    - 強反轉看「快速、大幅蓋過紫線」，不是只看是否蓋過 3 層。
-    - W 底盤整屬於反轉候選，分數可以高於弱反彈，但不貼強反轉。
-    - FIL 類單根小黃線先降權，等待下一日確認。
+
+    v3 分層：
+    1. 最高分保留給「已突破中軌 → 回踩中軌附近 → 4H 紅轉綠」的 SOL 類確認型。
+    2. 中軌下方的 XLM 類強反轉再強，也仍是「未確認過中軌壓力」；分數封頂，不給 100。
+    3. BOME 類曾經站上中軌、後續回落再反攻，優於 ARB 類從頭到尾沒碰中軌。
+    4. 站上中軌但乖離過大視為追高，分數要被封頂。
     """
     score = 0
 
     latest_color = flags.get("latest_color")
+    latest_pct = _safe_float(flags.get("latest_pct_vs_midline"))
+    near_midline_zone = bool(latest_pct is not None and -2.5 <= latest_pct <= 3.5)
+
+    # 1) 結構底分：中軌突破回踩再啟動 > 曾經突破後回落 > 一般黃線 > 紫線觀察
     if flags.get("breakout_pullback_yellow_restart"):
-        score += 45
-    elif flags.get("had_yellow_above_midline_before_current_run") and latest_color == "yellow" and not flags.get("below_midline_po3_amd_candidate"):
-        score += 28
+        score += 60
+    elif flags.get("had_yellow_above_midline_before_current_run") and latest_color == "yellow":
+        score += 34
     elif latest_color == "yellow":
         score += 18
     elif latest_color == "purple":
         score += 6
 
     over_count = int(flags.get("yellow_over_previous_purple_count") or 0)
+
+    # 2) PO3/AMD 分數：中軌下方仍需降階；但曾經站上中軌的杯柄候選要高於一路被壓制的幣。
     if flags.get("below_midline_po3_amd_candidate"):
         if flags.get("po3_amd_strong_reversal"):
-            score += 42 + min(over_count, 3) * 4
+            score += 30 + min(over_count, 3) * 4
+        elif flags.get("prior_breakout_then_pullback_reclaim"):
+            score += 31 + min(over_count, 3) * 3
         elif flags.get("po3_amd_w_bottom_candidate"):
-            score += 30 + min(over_count, 3) * 3
-        elif flags.get("po3_amd_early_weak_rebound"):
-            score += 16 + min(over_count, 3) * 2
-        else:
             score += 24 + min(over_count, 3) * 3
-    elif over_count >= 2 and latest_color == "yellow":
-        score += 16 + min(over_count, 3) * 3
+        elif flags.get("po3_amd_early_weak_rebound"):
+            score += 14 + min(over_count, 3) * 2
+        else:
+            score += 20 + min(over_count, 3) * 3
 
+        if flags.get("structurally_suppressed_never_touched_midline"):
+            score -= 8
+    elif over_count >= 2 and latest_color == "yellow":
+        score += 14 + min(over_count, 3) * 3
+
+    # 3) 4H 觸發：紅轉綠最高；綠綠是延續，不等於最佳買點。
     if flags.get("four_h_red_to_green"):
-        score += 20
+        score += 22
     elif flags.get("four_h_green_green"):
-        score += 14
+        score += 12
     elif item.get("4H前") == "🟢" and item.get("4H當") == "🔴":
         score -= 8
     elif item.get("4H當") == "🔴":
         score += 2
 
-    latest_pct = _safe_float(flags.get("latest_pct_vs_midline"))
+    # 4) 中軌距離：靠近中軌加分；站上太遠或跌太深都降分。
     if latest_pct is not None:
-        # 靠近中軌只能加分，不能單獨製造高分；離中軌 4~6% 且只是小黃線，不再過度加權。
-        if -2.5 <= latest_pct <= 5.0:
-            score += 10
-        elif -5.0 <= latest_pct < -2.5:
-            score += 4
+        if -1.5 <= latest_pct <= 2.5:
+            score += 14
+        elif -3.5 <= latest_pct < -1.5:
+            score += 8
+        elif 2.5 < latest_pct <= 5.0:
+            score += 6
+        elif -6.0 <= latest_pct < -3.5:
+            score += 3
         elif 5.0 < latest_pct <= 8.0:
-            score += 2
-        elif latest_pct > 8.0:
+            score -= 2
+        elif 8.0 < latest_pct <= 12.0:
             score -= 12
+        elif latest_pct > 12.0:
+            score -= 22
         elif latest_pct < -12.0:
             score -= 10
 
     avg_margin = _safe_float(flags.get("avg_reclaim_margin_vs_prev3_purple_pct"))
     rebound = _safe_float(flags.get("rebound_from_recent_purple_low_pct"))
     transitions = int(flags.get("recent_color_transitions_8d") or 0)
+    transitions_6d = int(flags.get("recent_color_transitions_6d") or 0)
 
     if flags.get("po3_amd_strong_reversal"):
         if rebound is not None and rebound >= 8.0:
-            score += 6
+            score += 5
         if latest_pct is not None and latest_pct >= -1.5:
-            score += 4
+            score += 3
+    elif flags.get("prior_breakout_then_pullback_reclaim"):
+        # 曾經站上中軌再回落，代表上方空方區塊已有被稀釋，杯柄反攻權重較高。
+        score += 8
+        if avg_margin is not None and avg_margin >= 2.0:
+            score += 3
     elif flags.get("po3_amd_w_bottom_candidate"):
         if transitions >= 3:
-            score += 4
+            score += 3
+        if transitions_6d >= 2:
+            score -= 2
         if avg_margin is not None and avg_margin >= 2.0:
-            score += 4
+            score += 2
     elif flags.get("po3_amd_early_weak_rebound"):
         score -= 8
         if avg_margin is not None and avg_margin < 1.0:
             score -= 4
 
-    return max(0, min(100, int(round(score))))
+    final_score = max(0, min(100, int(round(score))))
+
+    # 5) 最高分只給 SOL 類：已站上/突破過中軌，回踩接近中軌，4H 紅轉綠。
+    if flags.get("breakout_pullback_yellow_restart"):
+        if flags.get("four_h_red_to_green") and near_midline_zone:
+            final_score = 100
+        elif flags.get("four_h_green_green") and near_midline_zone:
+            final_score = max(final_score, 92)
+            final_score = min(final_score, 96)
+        else:
+            final_score = min(final_score, 90)
+
+    # 6) 中軌下方一律封頂：XLM 再強也不能與 SOL 類確認型同分。
+    if flags.get("below_midline_po3_amd_candidate"):
+        if flags.get("po3_amd_strong_reversal"):
+            # 強反轉但未真正站上中軌：高分，但不給 100。
+            cap = 90 if flags.get("prior_breakout_then_pullback_reclaim") else 88
+            final_score = min(final_score, cap)
+            final_score = max(final_score, 82)
+        elif flags.get("prior_breakout_then_pullback_reclaim"):
+            final_score = min(final_score, 86)
+            final_score = max(final_score, 78)
+        elif flags.get("po3_amd_w_bottom_candidate"):
+            final_score = min(final_score, 80)
+        elif flags.get("po3_amd_early_weak_rebound"):
+            final_score = min(final_score, 55)
+        else:
+            final_score = min(final_score, 76)
+
+        if flags.get("structurally_suppressed_never_touched_midline"):
+            final_score = min(final_score, 74)
+
+    # 7) 站上中軌但乖離太大，視為追高，不應比回踩中軌型高。
+    if latest_pct is not None and latest_pct > 0:
+        if latest_pct > 15.0:
+            final_score = min(final_score, 55)
+        elif latest_pct > 10.0:
+            final_score = min(final_score, 65)
+        elif latest_pct > 7.0:
+            final_score = min(final_score, 76)
+
+    return max(0, min(100, int(final_score)))
 
 def _records_from_plot_results(plot_results: Iterable[dict]) -> list[dict]:
     keep = [
@@ -510,8 +646,8 @@ def _records_from_plot_results(plot_results: Iterable[dict]) -> list[dict]:
             "ladder_history 是 index.html 圖上黃/紫階梯的文字化版本。",
             "color=yellow/🟡 代表平均K收盤上梯；color=purple/🟣 代表平均K收盤下梯。",
             "判斷中軌突破回踩再啟動，請優先看 pattern_flags.breakout_pullback_yellow_restart 與 4H 前/當。",
-            "判斷 PO3/AMD 不只看 yellow_over_previous_purple_count；強反轉需同時看 po3_amd_quality_label、avg_reclaim_margin_vs_prev3_purple_pct、rebound_from_recent_purple_low_pct。",
-            "XLM 類屬 strong_fast_reclaim；ONDO 類屬 w_bottom_candidate；FIL 類單根小黃線屬 early_weak_rebound_wait_confirm。",
+            "判斷 PO3/AMD 不只看 yellow_over_previous_purple_count；強反轉需同時看 po3_amd_quality_label、clean_fast_reclaim_run、recent_color_transitions_6d、rapid_reclaim_magnitude。",
+            "XLM 類屬 strong_fast_reclaim；SUI/ONDO 類黃紫混合後才過第3層屬 w_bottom_candidate；FIL 類單根小黃線屬 early_weak_rebound_wait_confirm。",
         ]
         out.append(_to_plain(item))
     return out
@@ -555,10 +691,6 @@ def _screen_candidates(charts: list[dict]) -> dict:
         [r for r in rows if "PO3" in str(r.get("pattern_type_hint"))],
         key=score_key,
     )[:20]
-    red_to_green = sorted(
-        [r for r in rows if r.get("4H前") == "🔴" and r.get("4H當") == "🟢"],
-        key=score_key,
-    )[:20]
     near_midline = sorted([r for r in rows if ok_num(r.get("abs_dev"))], key=lambda x: x["abs_dev"])[:20]
     bullish_above_midline = sorted(
         [r for r in rows if ok_num(r.get("bb_pct")) and r["bb_pct"] >= 0 and r.get("1D當") == "🟢" and r.get("4H當") == "🟢"],
@@ -576,7 +708,6 @@ def _screen_candidates(charts: list[dict]) -> dict:
     return {
         "breakout_pullback_restart": breakout_pullback_restart,
         "po3_amd_yellow_over_purple_steps": po3_amd,
-        "four_h_red_to_green": red_to_green,
         "high_score_hint_over_60": high_score_hint,
         "near_midline": near_midline,
         "bullish_above_midline": bullish_above_midline,
@@ -603,7 +734,7 @@ def build_snapshot_payload(
         "snapshot_hash": data_hash,
         "count": len(df) if isinstance(df, pd.DataFrame) else 0,
         "note": "index.html is visual; snapshot.json and snapshot_pretty.txt are the machine-readable data sources for ChatGPT analysis.",
-        "analysis_schema_version": "crypto-monitor-ladder-v3",
+        "analysis_schema_version": "crypto-monitor-ladder-v4",
         "analysis_schema": {
             "midline_pct_axis": "0% = 日線 BB 中軌；pct_vs_midline = HA 收盤價相對當天日線中軌的百分比。",
             "ladder_history": "每個幣最近 20 根日線 HA 階梯；yellow/🟡 = 平均K收盤上梯，purple/🟣 = 平均K收盤下梯。",
