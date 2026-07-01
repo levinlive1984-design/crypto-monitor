@@ -644,18 +644,14 @@ if results:
     sort_option = st.selectbox(
         "圖表排序 / 型態過濾方式",
         options=[
-            "依目前的日K收盤價 > 開盤價排序（預設多頭優先）",
-            "依「距離中軌%」距離近的排序（中軌距離）",
-            "依機械分數高到低排序",
-            "型態：高分候選 ≥ 60",
-            "型態：中軌突破回踩再啟動型",
-            "型態：中軌下方 PO3/AMD 強反轉型",
-            "型態：中軌下方 PO3/AMD 反轉候選型",
-            "型態：中軌突破回踩轉黃型",
-            "型態：中軌附近磨合轉黃型",
-            "型態：4H 前紅 → 4H 當綠",
-            "型態：紫線未轉黃觀察型",
-            "依目前的日K收盤價 < 開盤價排序（空頭優先）",
+            "依機械分數高到低排序(預設)",
+            "型態：🚀中軌突破回踩再啟動型",
+            "型態：⚡中軌下方 PO3/AMD 強反轉型",
+            "型態：🧲中軌下方 PO3/AMD 反轉候選型",
+            "型態：🛩中軌突破回踩轉黃型",
+            "型態：🧩中軌附近磨合轉黃型",
+            "型態：🔄4H 前紅 → 4H 當綠",
+            "型態：☔紫線未轉黃觀察型",
             "依幣種英文字母順序排序",
         ],
         index=0,
@@ -671,36 +667,28 @@ if results:
         return item.get("_pattern_flags") or {}
 
     def _filter_chart_items(items):
-        if sort_option == "型態：高分候選 ≥ 60":
-            return [x for x in items if _score(x) >= 60]
-        if sort_option == "型態：中軌突破回踩再啟動型":
+        if sort_option == "型態：🚀中軌突破回踩再啟動型":
             return [x for x in items if _pattern(x) == "中軌突破回踩再啟動型"]
-        if sort_option == "型態：中軌下方 PO3/AMD 強反轉型":
+        if sort_option == "型態：⚡中軌下方 PO3/AMD 強反轉型":
             return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 強反轉型"]
-        if sort_option == "型態：中軌下方 PO3/AMD 反轉候選型":
+        if sort_option == "型態：🧲中軌下方 PO3/AMD 反轉候選型":
             return [x for x in items if _pattern(x) == "中軌下方 PO3/AMD 反轉候選型"]
-        if sort_option == "型態：中軌突破回踩轉黃型":
+        if sort_option == "型態：🛩中軌突破回踩轉黃型":
             return [x for x in items if _pattern(x) == "中軌突破回踩轉黃型"]
-        if sort_option == "型態：中軌附近磨合轉黃型":
+        if sort_option == "型態：🧩中軌附近磨合轉黃型":
             return [x for x in items if _pattern(x) == "中軌附近磨合轉黃型"]
-        if sort_option == "型態：4H 前紅 → 4H 當綠":
+        if sort_option == "型態：🔄4H 前紅 → 4H 當綠":
             return [x for x in items if _flags(x).get("four_h_red_to_green")]
-        if sort_option == "型態：紫線未轉黃觀察型":
+        if sort_option == "型態：☔紫線未轉黃觀察型":
             return [x for x in items if _pattern(x) == "紫線未轉黃觀察型"]
         return list(items)
 
     # 根據選擇的排序方式處理圖表列表
     def _sort_chart_items(items):
         items = list(items)
-        if sort_option == "依目前的日K收盤價 > 開盤價排序（預設多頭優先）":
-            return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] > x["_ha_opens_last20"][-1]) else 1)
-        if sort_option == "依「距離中軌%」距離近的排序（中軌距離）":
-            return sorted(items, key=lambda x: x.get("_abs_dev", 999))
-        if sort_option == "依目前的日K收盤價 < 開盤價排序（空頭優先）":
-            return sorted(items, key=lambda x: 0 if (x.get("_ha_closes_last20") and x.get("_ha_opens_last20") and x["_ha_closes_last20"][-1] < x["_ha_opens_last20"][-1]) else 1)
         if sort_option == "依幣種英文字母順序排序":
             return sorted(items, key=lambda x: x.get("幣種", ""))
-        # 型態過濾與機械分數選項，一律用分數高到低排列。
+        # 預設與所有型態過濾選項，一律用機械分數高到低排列。
         return sorted(items, key=lambda x: (-_score(x), x.get("幣種", "")))
 
     filtered_chart_results = _filter_chart_items(annotated_chart_results)
@@ -730,11 +718,17 @@ if results:
                 ha_closes = r.get("_ha_closes_last20", [])
                 ha_times = r.get("_ha_times_last20", [])
 
-                # 標題：加入 get.py 解析出的型態與機械分數
+                # 標題：第一行顯示幣種 / 現價 / 偏離 / 4H；第二行顯示型態與機械分數
                 pattern_label = r.get("_pattern_type_hint", "一般觀察型")
                 score_label = r.get("_machine_score_hint_0_100", 0)
                 st.markdown(
-                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}　|　型態：{pattern_label}　|　分數：{score_label}/100"
+                    f"**{r['幣種']}**　現價 {r['現價']}　|　目前偏離 {r['差%']}　|　4H前 {r.get('4H前','—')} 4H當 {r.get('4H當','—')}"
+                )
+                st.markdown(
+                    f"<div style='font-size:13px;color:#cbd5e1;margin-top:-10px;margin-bottom:8px;'>"
+                    f"型態：{html.escape(str(pattern_label))}　|　分數：{score_label}/100"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
 
                 # 建立 20期走勢圖
