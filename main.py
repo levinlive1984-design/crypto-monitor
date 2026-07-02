@@ -11,6 +11,9 @@ import numpy as np
 import streamlit.components.v1 as components
 import importlib
 import get as snapshot_builder
+from symbols_config import SYMBOLS_CONFIG
+from pattern_options import PATTERN_SORT_OPTIONS
+
 snapshot_builder = importlib.reload(snapshot_builder)
 build_snapshot_payload = snapshot_builder.build_snapshot_payload
 
@@ -374,11 +377,7 @@ def format_price(price):
         return f"{price:.8f}"
 
 # ==================== 4. 幣種清單 ====================
-
-SYMBOLS_CONFIG = {
-    "考試幣": ["ADA", "BTC", "DOGE", "ETH", "LINK", "LTC", "XLM", "XRP", "BCH", "ETC", "DOT", "FIL", "SOL", "BNB", "AVAX", "UNI", "ATOM", "AAVE", "ARB", "OP", "SUI", "PEPE", "SHIB", "WLD", "ORDI", "FLOKI", "BOME","1INCH", "AIXBT", "ALGO", "APT", "ASTER", "AXS", "BONK", "BRETT", "CAKE", "CHZ", "COMP", "CRV", "DEGEN", "DOG", "DYDX", "EGLD", "ENA", "ENJ", "FART", "FLR", "GALA", "GLM", "GMX", "GRASS", "GRT", "HBAR", "HYPE", "ICP", "IMX", "INJ", "IP", "JTO", "JUP", "KAITO", "KAS", "KAVA", "LDO", "LPT", "LRC", "MANA", "MANTA", "MEME", "MOODENG", "NEAR", "OKB", "ONDO", "PAXG", "PENDLE", "PENGU", "PNUT", "POL", "POPCAT", "PUMP", "PYTH", "RAY", "RENDER", "ROSE", "RPL", "RSR", "RUNE", "S", "SAND", "SEI", "SNX", "STRK", "STX", "SUSHI", "TAO", "TIA", "TON", "TRUMP", "TRX", "VET", "VIRTUAL", "W", "WIF", "XPL", "YFI", "ZEC"],
-    "全部": ["A","A2Z","AAVE","ACE","ACH","ACT","ACU","ADA","AERGO","AERO","AEVO","AGIX","AGLD","AGT","AI","AI16Z","AIA","AIGENSYN","AIN","AIO","AIOT","AIXBT","AKE","AKT","ALCH","ALGO","ALICE","ALL","ALLO","ALPHA","ALPINE","ALT","ANIME","ANKR","ANT","ANTHROPIC","APE","API3","APR","APT","AR","ARB","ARC","ARIA","ARK","ARKM","ARPA","ASR","ASTER","ASTR","AT","ATA","ATH","ATOM","AUCTION","AUDIO","AVAX","AVNT","AWE","AXL","AXS","AZTEC","B","B3","BABY","BABYDOGE","BADGER","BAKE","BAL","BAN","BANANA","BANANAS31","BAND","BANK","BARD","BAS","BASED","BAT","BB","BCH","BDXN","BEAMX","BEAT","BEL","BERA","BICO","BIGTIME","BILL","BIO","BIRB","BLEND","BLESS","BLUAI","BLUR","BLZ","BNB","BNT","BNX","BOB","BOME","BOND","BONK","BR","BRENTOIL","BRETT","BREV","BROCCOLI","BSB","BSV","BTC","BTR","BTW","BULLA","C98","CAKE","CAR","CARV","CATI","CBRS","CC","CELO","CELR","CETUS","CFG","CFX","CHEEMS","CHIP","CHR","CHZ","CKB","CL","CLANKER","CLO","CNBARS","CNLX","CNWTMLL","COAI","COLLECT","COMBO","COMMON","COMP","COOKIE","COPPER","COTI","COW","CRO","CROSS","CRV","CTR","CUDIS","CVC","CVX","CYBER","CYS","DAM","DAR","DASH","DEAGENTAI","DEGEN","DIA","DODO","DOGE","DOGS","DOLO","DOT","DRIFT","DUSK","DYDX","DYM","EDGE","EDU","EGLD","EIGEN","ELSA","ENA","ENJ","ENS","ENSO","EOS","EPT","ESP","ESPORTS","ETC","ETH","ETHFI","ETHW","EUL","EVAA","F","FARTCOIN","FET","FF","FHE","FIGHT","FIL","FIO","FLM","FLOCK","FLOKI","FLOW","FLUID","FOGO","FOLKS","FORTH","FOUR","FOURTWO","FRAX","FRONT","FTM","FTT","FUN","FXS","GAL","GALA","GAS","GENIUS","GIGGLE","GLMR","GMT","GMX","GOAT","GPS","GRASS","GRIFFAIN","GRT","GTC","GUA","GUN","GWEI","H","HAEDAL","HANA","HBAR","HEMI","HFT","HIFI","HIGH","HIPPO","HMSTR","HNT","HOLO","HOME","HOOK","HUMA","HYPE","HYUNDAI","ICNT","ICP","ICX","ID","IDEX","IDOL","ILV","IMX","IN","INCH","INFQX","INIT","INJ","INX","IO","IOST","IOTA","IOTX","IP","IR","IRYS","JASMY","JCT","JELLYJELLY","JOE","JTO","JUP","KAIA","KAITO","KAS","KAT","KAVA","KERNEL","KGEN","KITE","KLAY","KMNO","KNC","LA","LAB","LAUNCHCOIN","LAYER","LDO","LEVER","LIGHT","LIGHTER","LINA","LINEA","LINK","LISTA","LIT","LOKA","LOOM","LPT","LQTY","LRC","LSK","LTC","LUNA2","LUNC","LYN","MAGIC","MAGMA","MANA","MANTA","MANTRA","MASK","MATIC","MAV","MAVIA","MBL","MBOX","MDT","ME","MEGA","MELANIA","MEME","MERL","MET","METIS","MEW","MINA","MITO","MKR","MLN","MMT","MNT","MON","MOODENG","MOVE","MOVR","MTL","MUBARAK","MYRO","MYX","NAORIS","NATGAS","NEAR","NEIROCTO","NEIROETH","NEO","NFP","NIGHT","NIL","NKN","NMR","NOM","NOT","NOWX","NTRN","NXPC","OCEAN","OFC","OG","OGN","OKB","OL","OM","OMG","OMNI","ON","ONDO","ONE","ONG","ONT","OP","OPEN","OPENAI","OPENEDEN","OPG","OPN","ORBS","ORCA","ORDER","ORDI","OXT","PARTI","PAXG","PENDLE","PENGU","PEOPLE","PEPE","PERP","PHA","PHB","PI","PIEVERSE","PIGGY","PIPPIN","PIXEL","PLAY","PLUME","PNUT","POL","POLYX","PONKE","POPCAT","PORT3","PORTAL","POWER","POWR","PRL","PROMPT","PROS","PROVE","PTB","PUFFER","PUMP","PUMPFUN","PYTH","Q","QNT","QNTX","QTUM","RAD","RARE","RATS","RAVE","RAY","RDNT","RECALL","REEF","RENDER","RESOLV","REZ","RHEA","RIF","RIVER","RLC","RLS","RNDR","ROBO","RON","ROSE","RPL","RSR","RSS3","RUNE","RVN","RVV","S","SAGA","SAHARA","SAND","SAPIEN","SATS","SCR","SCRT","SEI","SENT","SFP","SHELL","SHIB","SIREN","SKATE","SKHX","SKL","SKR","SKY","SKYAI","SLERF","SLP","SLX","SMSN","SNT","SNX","SOL","SOLV","SOMI","SOON","SOPH","SPACE","SPELL","SPK","SPORTFUN","SPX","SQD","SRM","SSV","STABLE","STAR","STARL","STBL","STEEM","STG","STMX","STO","STORJ","STPT","STRAX","STRK","STX","SUI","SUN","SUPER","SUSHI","SWARMS","SXP","SXT","SYRUP","SYS","T","TA","TAC","TAIKO","TAKE","TANSSI","TAO","THE","THETA","TIA","TLM","TNSR","TOKEN","TOMO","TON","TOSHI","TOWNS","TRADOOR","TRB","TREE","TRIA","TRU","TRUMP","TRUST","TRUTH","TRX","TST","TURBO","TURTLE","TUT","TWOZ","TWT","UAI","UB","UMA","UNFI","UNI","UP","US","USD","USDC","USDE","USELESS","USTC","USUAL","UXLINK","VANRY","VELODROME","VELVET","VET","VIDT","VINE","VIRTUAL","VOXEL","VRA","VVV","W","WAL","WAVES","WAXP","WCT","WET","WIF","WLD","WLFI","WOO","XAG","XAI","XAN","XAU","XAUT","XEC","XEM","XLM","XMR","XNO","XNY","XPD","XPIN","XPL","XPT","XRP","XTZ","XVG","XVS","YALA","YB","YFI","YGG","YZY","ZAMA","ZBT","ZEC","ZEN","ZEREBRO","ZEROG","ZEST","ZETA","ZIL","ZKC","ZKF","ZKP","ZKSYNC","ZORA","ZRC","ZRO","ZRX"]
-}
+# 已移至 symbols_config.py
 
 # ==================== 5. 介面佈局 ====================
 
@@ -669,16 +668,7 @@ if results:
     # 重要：這裡不直接渲染 selectbox。
     # 先讀取 session_state 內的選項來決定本輪圖表；等所有圖表畫完後，
     # 再把 selectbox 填進 pattern_filter_slot，避免頁面尚未載完時就能亂選。
-    PATTERN_SORT_OPTIONS = [
-        "依機械分數高到低排序(預設)",
-        "型態：🚀中軌突破回踩轉黃型",
-        "型態：⚡中軌下方 PO3/AMD 強反轉型",
-        "型態：🧲中軌下方 PO3/AMD 反轉候選型",
-        "型態：🕒中軌下方 PO3/AMD 轉黃早期觀察型",
-        "型態：🧩中軌附近磨合轉黃型",
-        "型態：☔紫線未轉黃觀察型",
-        "依幣種英文字母順序排序",
-    ]
+    # PATTERN_SORT_OPTIONS 已移至 pattern_options.py
     if "pattern_sort_option" not in st.session_state:
         st.session_state.pattern_sort_option = PATTERN_SORT_OPTIONS[0]
     if st.session_state.pattern_sort_option not in PATTERN_SORT_OPTIONS:
