@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import numpy as np
 import streamlit.components.v1 as components
-from get import build_snapshot_payload
+import importlib
+import get as snapshot_builder
+snapshot_builder = importlib.reload(snapshot_builder)
+build_snapshot_payload = snapshot_builder.build_snapshot_payload
 
 # ==================== 0. matplotlib 中文字型設定 ====================
 # 自動從系統已安裝字型中找一個支援中文的字型，避免圖表中文顯示成方塊 □□□
@@ -199,7 +202,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 2.1 浮動 FAB：開關「選幣／恢復預設／清除勾選」抽屜 ====================
+# 清除舊版浮動 FAB：新版表格已改為 expander 收合，不再使用右側 🎛️ 抽屜。
+components.html(
+    """
+    <script>
+    (function() {
+        try {
+            var p = window.parent.document;
+            var old = p.getElementById('panel-fab');
+            if (old) old.remove();
+            var drawers = p.querySelectorAll('.st-key-floating_action_bar');
+            drawers.forEach(function(d) { d.remove(); });
+        } catch (e) {}
+    })();
+    </script>
+    """,
+    height=0,
+    width=0,
+)
+
+# ==================== 2.1 舊版浮動 FAB 函式保留但不再呼叫 ====================
 def inject_panel_fab():
     components.html(
         """
@@ -561,46 +583,49 @@ if results:
         .apply(color_pct, subset=["差%"], axis=0)
     )
 
-    # 表格全寬顯示 + 浮動操作面板（捲動表格時仍固定在畫面右側）
-    edited_df = st.data_editor(
-        styled,
-        use_container_width=True,
-        column_config=col_cfg,
-        height=(len(display_df) + 1) * 34 + 5,
-        hide_index=True,
-        key=f"coin_selector_{st.session_state.editor_version}"
-    )
+    # 即時表格預設收合：平常以圖表型態為主；需要手動選幣時再展開。
+    # 注意：st.expander 即使收合，內容仍會被 Streamlit 計算，但畫面預設不佔用視覺空間。
+    with st.expander("📋 即時表格 / 手動選幣（點擊展開）", expanded=False):
+        st.caption("表格預設收合。需要手動勾選幣種時，再展開此區塊操作。")
 
-    with st.container(key="floating_action_bar"):
-        st.markdown("<div style='color:#13f21a;font-size:11px;font-weight:bold;margin-bottom:6px;'>🎛️ 操作面板</div>", unsafe_allow_html=True)
-        pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
-        show_all_clicked = st.button("📊 恢復預設", use_container_width=True)
-        clear_clicked = st.button("🗑️ 清除勾選", use_container_width=True)
+        edited_df = st.data_editor(
+            styled,
+            use_container_width=True,
+            column_config=col_cfg,
+            height=min((len(display_df) + 1) * 34 + 5, 520),
+            hide_index=True,
+            key=f"coin_selector_{st.session_state.editor_version}"
+        )
 
-    # 注入永遠浮動的 FAB 按鈕，點擊即可滑開/收起上方抽屜
-    inject_panel_fab()
+        btn_pick, btn_show_all, btn_clear = st.columns(3)
+        with btn_pick:
+            pick_clicked = st.button("🎯 選幣", type="primary", use_container_width=True)
+        with btn_show_all:
+            show_all_clicked = st.button("📊 恢復預設", use_container_width=True)
+        with btn_clear:
+            clear_clicked = st.button("🗑️ 清除勾選", use_container_width=True)
 
-    # 「🎯 選幣」：把目前勾選的幣種直接套用，圖表立刻只顯示這些幣種
-    if pick_clicked:
-        selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
-        if selected:
-            st.session_state.applied_search = "、".join(selected)
-            st.toast(f"🎯 已選擇 {len(selected)} 個幣種", icon="✅")
+        # 「🎯 選幣」：把目前勾選的幣種直接套用，圖表立刻只顯示這些幣種
+        if pick_clicked:
+            selected = edited_df[edited_df.get("選取", False) == True]["幣種"].tolist() if isinstance(edited_df, pd.DataFrame) else []
+            if selected:
+                st.session_state.applied_search = "、".join(selected)
+                st.toast(f"🎯 已選擇 {len(selected)} 個幣種", icon="✅")
+                st.rerun()
+            else:
+                st.toast("請先勾選幣種", icon="⚠️")
+
+        # 「📊 恢復預設」：恢復原廠設定，顯示全部幣種的圖表
+        if show_all_clicked:
+            st.session_state.applied_search = ""
+            st.toast("📊 已恢復顯示全部幣種圖表", icon="🔄")
             st.rerun()
-        else:
-            st.toast("請先勾選幣種", icon="⚠️")
 
-    # 「📊 恢復預設」：恢復原廠設定，顯示全部幣種的圖表
-    if show_all_clicked:
-        st.session_state.applied_search = ""
-        st.toast("📊 已恢復顯示全部幣種圖表", icon="🔄")
-        st.rerun()
-
-    # 「🗑️ 清除勾選」：重置所有勾選（透過更換 data_editor key 強制清空）
-    if clear_clicked:
-        st.session_state.editor_version += 1
-        st.toast("🗑️ 已清除所有勾選", icon="✅")
-        st.rerun()
+        # 「🗑️ 清除勾選」：重置所有勾選（透過更換 data_editor key 強制清空）
+        if clear_clicked:
+            st.session_state.editor_version += 1
+            st.toast("🗑️ 已清除所有勾選", icon="✅")
+            st.rerun()
 
     # ==================== 各幣種 最近20根 HA 收盤價 vs BB中軌 % 偏差圖 ====================
     st.markdown("---")
