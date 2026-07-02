@@ -477,7 +477,7 @@ def score_hint(flags: dict, item: dict) -> int:
             final_score = min(final_score, 74)
 
     # v5 防呆二次封頂：只要 pattern 仍屬中軌下方 PO3/AMD，就絕不可顯示 100。
-    pattern_guard = _classify_pattern(flags)
+    pattern_guard = classify_pattern(flags)
     if pattern_guard == "中軌下方 PO3/AMD 強反轉型":
         final_score = min(final_score, 88)
         final_score = max(final_score, 82)
