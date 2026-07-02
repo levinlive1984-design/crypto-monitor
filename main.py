@@ -384,7 +384,7 @@ def format_price(price):
 col_title, col_select, col_btn, col_download = st.columns([0.50, 0.22, 0.12, 0.16])
 
 with col_title:
-    st.markdown("<div class='cyber-title'>Heikin-Ashi Monitor Terminal</div>", unsafe_allow_html=True)
+    st.markdown("<div class='cyber-title'>Heikin-Ashi Ladder Pattern Scoring Engine</div>", unsafe_allow_html=True)
     tw_now = datetime.now(TW_TZ).strftime('%H:%M:%S')
     st.markdown(f"<div class='cyber-subtitle'>CORE PROTOCOL ACTIVE | UPDATED: {tw_now} (TWN)</div>", unsafe_allow_html=True)
 
